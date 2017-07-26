@@ -7,7 +7,7 @@
 #include "TaskInformation.generated.h"
 
 /**
- * 
+ * describe a task's information
  */
 USTRUCT(BlueprintType)
 struct FTaskInformation
@@ -25,21 +25,31 @@ public:
 		return GUID;
 	}
 
-	UPROPERTY()
+	bool operator==(const FTaskInformation& InTaskInfo)
+	{
+		return GetGuid() == InTaskInfo.GetGuid();
+	}
+
+	bool operator==(const FGuid InGuid)
+	{
+		return GetGuid() == InGuid;
+	}
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
 		FString FileName = FString("");
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
 		FString SourceUrl = FString("");
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
 		FString ETag = FString("");
 
-	UPROPERTY()
-		int32 TotalSize = 0;
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
 		int32 CurrentSize = 0;
 
-protected:
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+		int32 TotalSize = 0;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
 		FGuid GUID = FGuid::NewGuid();
 };

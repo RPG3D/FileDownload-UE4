@@ -41,6 +41,8 @@ public class FileDownloader : ModuleRules
 				"Slate",
 				"SlateCore",
                 "Http",
+                "JsonUtilities",
+                "Json",
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

@@ -10,24 +10,24 @@
 #include "DownloadEvent.h"
 
 /**
- * 
+ * a download task, normally operated by FileDownloadManager, extreamly advise you to use FileDownloadManager.
  */
 class FILEDOWNLOADER_API DownloadTask
 {
 public:
 	DownloadTask();
 
-	DownloadTask(const FString& InUrl);
+	DownloadTask(const FString& InUrl, const FString& InDirectory, const FString& InFileName);
 
-	DownloadTask(const FString& InUrl, const FString& InFileName);
-
-	~DownloadTask();
+	virtual ~DownloadTask();
 
 	virtual FString SetFileName(const FString& InFileName);
 
 	virtual FString GetFileName() const;
 
 	virtual FString GetSourceUrl() const;
+
+	virtual FString SetSourceUrl(const FString& InUrl);
 
 	virtual FString SetDirectory(const FString& InDirectory);
 
@@ -53,12 +53,28 @@ public:
 
 	virtual bool Stop();
 
-	virtual FGuid GetGuid() const;
+	FGuid GetGuid() const;
 
 	virtual bool IsDownloading() const;
 
 	FTaskInformation GetTaskInformation() const;
+
+	ETaskState GetState() const;
 	
+	bool SaveTaskToJsonFile(const FString& InFileName) const;
+
+	bool ReadTaskFromJsonFile(const FString& InFileName);
+
+	//callback for notifying download events
+	TFunction<void(ETaskEvent InEvent, const FTaskInformation& InInfo)> ProcessTaskEvent = [this](ETaskEvent InEvent, const FTaskInformation& InInfo) 
+	{
+		if (InEvent == ETaskEvent::START_DOWNLOAD)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("%s  %d  Please use FileDownloadManager instead DownloadTask to download file."));
+		}
+		
+	};
+
 protected:
 
 	virtual void GetHead();
@@ -68,26 +84,25 @@ protected:
 	virtual FString GetFullFileName() const;
 
 	virtual void OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bWasSuccessful);
-	virtual void OnChunkCompleted(FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bWasSuccessful);
+	virtual void OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bWasSuccessful);
 
 	virtual void OnTaskCompleted();
 
 	virtual void OnWriteChunkEnd(int32 WroteSize);
 
-	TArray<TSharedRef<class IHttpRequest>> RequestList;
-
 	FTaskInformation TaskInfo;
 
-	FString Directory = FString("");
+	FString Directory;
 
 	bool bShouldStop = false;
 
 	ETaskState TaskState = ETaskState::NONE;
 
 	static FString TEMP_FILE_EXTERN;
+	static FString TASK_JSON;
 
 	//4MB as one section to download
-	const int32 ChunkSize = 2 * 1024 * 1024;
+	const int32 ChunkSize = 4 * 1024 * 1024;
 
 	TArray<uint8> DataBuffer;
 

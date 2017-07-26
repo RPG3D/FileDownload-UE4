@@ -7,7 +7,8 @@
 /**
  * 
  */
-enum class ETaskEvent
+UENUM(BlueprintType)
+enum class ETaskEvent : uint8
 {
 	//wait for download, no task information currently
 	NONE,
@@ -19,6 +20,10 @@ enum class ETaskEvent
 	START_DOWNLOAD,
 	//Update
 	DOWNLOAD_UPDATE,
+	
+	//stop
+	STOP,
+
 	//download completed
 	DOWNLOAD_COMPLETED,
 
@@ -28,7 +33,8 @@ enum class ETaskEvent
 	ERROR_OCCUR
 };
 
-enum class ETaskState
+UENUM(BlueprintType)
+enum class ETaskState : uint8
 {
 	NONE,
 	//wait for getting information

@@ -101,12 +101,13 @@ int32 DownloadTask::GetCurrentSize() const
 int32 DownloadTask::GetPercentage() const
 {
 	int32 Total = TaskInfo.TotalSize;
-	if (Total <= 0)
+	if (Total < 1)
 	{
-		++Total;
+		Total = 1;
 	}
-
-	return (int32)((float)TaskInfo.CurrentSize / Total);
+	
+	float progress = GetCurrentSize() / GetTotalSize();
+	return (int32)progress * 100;
 }
 
 FString DownloadTask::SetETag(const FString& ETag)
@@ -307,7 +308,7 @@ void DownloadTask::StartChunk()
 	//lastPosition = TotalSize-1 
 	if (EndPosition >= GetTotalSize())
 	{
-		EndPosition = GetTotalSize();
+		EndPosition = GetTotalSize() - 1;
 	}
 	FString RangeStr = FString("bytes=") + FString::FromInt(StartPostion) + FString(TEXT("-")) + FString::FromInt(EndPosition);
 	dlRequest->AppendToHeader(FString("Range"), RangeStr);

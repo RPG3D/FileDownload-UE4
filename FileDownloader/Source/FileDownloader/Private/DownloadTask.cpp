@@ -103,11 +103,14 @@ int32 DownloadTask::GetPercentage() const
 	int32 Total = TaskInfo.TotalSize;
 	if (Total < 1)
 	{
-		Total = 1;
+		return 0;
+	}
+	else
+	{
+		float progress = GetCurrentSize() / GetTotalSize();
+		return (int)(progress * 100);
 	}
 	
-	float progress = GetCurrentSize() / GetTotalSize();
-	return (int32)progress * 100;
 }
 
 FString DownloadTask::SetETag(const FString& ETag)

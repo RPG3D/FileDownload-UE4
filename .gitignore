@@ -1,7 +1,7 @@
-# Visual Studio 2015 user specific files
+# Visual Studio 2017 user specific files
 .vs/
 
-# Visual Studio 2015 database file
+# Visual Studio 2017 database file
 *.VC.db
 
 # Compiled Object files
@@ -50,9 +50,13 @@ SourceArt/**/*.tga
 
 # Binary Files
 Binaries/*
+Plugins/*/Binaries/*
 
 # Builds
 Build/*
+WindowsNoEditor
+Android
+Android_ETC2
 
 # Whitelist PakBlacklist-<BuildConfiguration>.txt files
 !Build/*/
@@ -70,6 +74,13 @@ Saved/*
 
 # Compiled source files for the engine to use
 Intermediate/*
+Plugins/*/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+
+#don't ignore source directory
+!source/**
+
+#don't ignore lua script
+!Saved/Scripts/

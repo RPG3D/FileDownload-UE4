@@ -101,12 +101,14 @@ protected:
 	static FString TEMP_FILE_EXTERN;
 	static FString TASK_JSON;
 
-	//4MB as one section to download
-	const int32 ChunkSize = 4 * 1024 * 1024;
+	//2MB as one section to download
+	const int32 ChunkSize = 2 * 1024 * 1024;
 
 	TArray<uint8> DataBuffer;
 
 	FString TmpFullName;
 
 	IFileHandle* TargetFile = nullptr;
+
+	FHttpRequestPtr Request = nullptr;
 };

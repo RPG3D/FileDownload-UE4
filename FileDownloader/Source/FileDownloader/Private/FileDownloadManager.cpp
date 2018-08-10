@@ -2,7 +2,36 @@
 
 #include "FileDownloadManager.h"
 
-FString UFileDownloadManager::DefaultDirectory = TEXT("FileDownload");
+void UFileDownloadManager::Tick(float DeltaTime)
+{
+	if (bStopAll)
+	{
+		return;
+	}
+	static float TimeCount = 0.f;
+	TimeCount += DeltaTime;
+	if (TimeCount >= TickInterval)
+	{
+		TimeCount = 0.f;
+		//broadcast event
+
+		//find task to do
+		if (CurrentDoingWorks < MaxParallelTask && TaskList.Num())
+		{
+			int32 Idx = FindTaskToDo();
+			if (Idx > INDEX_NONE)
+			{
+				TaskList[Idx]->Start();
+				++CurrentDoingWorks;
+			}
+		}
+	}
+}
+
+TStatId UFileDownloadManager::GetStatId() const
+{
+	return TStatId();
+}
 
 UFileDownloadManager::UFileDownloadManager()
 {
@@ -11,14 +40,16 @@ UFileDownloadManager::UFileDownloadManager()
 
 void UFileDownloadManager::StartAll()
 {
-	for (int32 i = 0; i < TaskList.Num(); ++i)
-	{
-		TaskList[i]->Start();
-	}
+	bStopAll = false;
 }
 
 void UFileDownloadManager::StartLast()
 {
+	if (TaskList.Num() < 1)
+	{
+		return;
+	}
+
 	TaskList.Last()->Start();
 }
 
@@ -37,6 +68,8 @@ void UFileDownloadManager::StopAll()
 	{
 		TaskList[i]->Stop();
 	}
+
+	bStopAll = true;
 }
 
 void UFileDownloadManager::StopTask(const FGuid& InGuid)
@@ -81,9 +114,16 @@ TArray<FTaskInformation> UFileDownloadManager::GetAllTaskInformation() const
 	return Ret;
 }
 
-FGuid UFileDownloadManager::AddTask(DownloadTask* InTask)
+FGuid UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& InDirectory, const FString& InFileName)
 {
-	if (InTask == nullptr)
+	FString TmpDir = InDirectory;
+	if (TmpDir.IsEmpty())
+	{
+		TmpDir = FPaths::GameContentDir() + DefaultDirectory;
+	}
+	TSharedPtr<DownloadTask>Task = MakeShareable(new DownloadTask(InUrl, TmpDir, InFileName));
+
+	if (Task.IsValid() == false)
 	{
 		FGuid ret;
 		ret.Invalidate();
@@ -92,14 +132,14 @@ FGuid UFileDownloadManager::AddTask(DownloadTask* InTask)
 
 	for (int32 i = 0; i < TaskList.Num(); ++i)
 	{
-		if (TaskList[i]->GetGuid() == InTask->GetGuid())
+		if (TaskList[i]->GetGuid() == Task->GetGuid())
 		{
 			//任务存在于任务列表
 			return TaskList[i]->GetGuid();
 		}
 	}
 
-	InTask->ProcessTaskEvent = [this](ETaskEvent InEvent, const FTaskInformation& InInfo)
+	Task->ProcessTaskEvent = [this](ETaskEvent InEvent, const FTaskInformation& InInfo)
 	{
 		if (this != nullptr)
 		{
@@ -107,18 +147,8 @@ FGuid UFileDownloadManager::AddTask(DownloadTask* InTask)
 		}
 	};
 
-	TaskList.Add(InTask);
-	return InTask->GetGuid();
-}
-
-FGuid UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& InDirectory, const FString& InFileName)
-{
-	FString TmpDir = InDirectory;
-	if (TmpDir.IsEmpty())
-	{
-		TmpDir = FPaths::GameContentDir() + DefaultDirectory;
-	}
-	return AddTask(new DownloadTask(InUrl, TmpDir, InFileName));
+	TaskList.Add(Task);
+	return Task->GetGuid();
 }
 
 void UFileDownloadManager::OnTaskEvent(ETaskEvent InEvent, const FTaskInformation& InInfo)
@@ -126,11 +156,17 @@ void UFileDownloadManager::OnTaskEvent(ETaskEvent InEvent, const FTaskInformatio
 	OnDlManagerEvent.Broadcast(InEvent, InInfo);
 	if (InEvent == ETaskEvent::DOWNLOAD_COMPLETED)
 	{
-		int32 n = FindTaskToDo();
-		if (n >= 0)
+		if (MaxParallelTask > 0)
 		{
-			TaskList[n]->Start();
+			--MaxParallelTask;
 		}
+
+		int32 Idx = FindTaskByGuid(InInfo.GetGuid());
+		if (Idx > INDEX_NONE)
+		{
+			TaskList.RemoveAt(Idx);
+		}
+		
 	}
 	return ;
 }
@@ -157,7 +193,7 @@ int32 UFileDownloadManager::FindTaskToDo() const
 
 int32 UFileDownloadManager::FindTaskByGuid(const FGuid& InGuid) const
 {
-	int32 ret = -1;
+	int32 ret = INDEX_NONE;
 	for (int32 i = 0; i < TaskList.Num(); ++i)
 	{
 		if (TaskList[i]->GetGuid() == InGuid)

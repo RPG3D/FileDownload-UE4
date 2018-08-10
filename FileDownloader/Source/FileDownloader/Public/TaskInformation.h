@@ -37,19 +37,17 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
 		FString FileName = FString("");
-
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+		FString DestDirectory;
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
 		FString SourceUrl = FString("");
-
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
 		FString ETag = FString("");
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
 		int32 CurrentSize = 0;
-
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
 		int32 TotalSize = 0;
-
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
 		FGuid GUID = FGuid::NewGuid();
 };

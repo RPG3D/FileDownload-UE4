@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "TaskInformation.h"
 #include "DownloadTask.h"
+#include "Tickable.h"
 #include "FileDownloadManager.Generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FDLManagerDelegate, ETaskEvent, InEvent, FTaskInformation, InInfo);
@@ -13,7 +14,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FDLManagerDelegate, ETaskEvent, InE
  * FileDownloadManager, this class is the interface of the plugin, use this class download file as far as possible (both c++ & blueprint)
  */
 UCLASS(BlueprintType)
-class FILEDOWNLOADER_API UFileDownloadManager : public UObject
+class FILEDOWNLOADER_API UFileDownloadManager : public UObject, public FTickableGameObject
 {
 	GENERATED_BODY()
 public:
@@ -66,13 +67,20 @@ public:
 	UFUNCTION(BlueprintCallable)
 		FString GetDownloadDirectory() const;
 
+	virtual void Tick(float DeltaTime) override;
+
+	virtual TStatId GetStatId() const override;
+	
+	//tick interval
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		float TickInterval = 0.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		int32 MaxParallelTask = 4;
 	UPROPERTY(BlueprintAssignable)
 		FDLManagerDelegate OnDlManagerEvent;
 
-	FGuid AddTask(DownloadTask* InTask);
-
-
-	static FString DefaultDirectory;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FString DefaultDirectory = TEXT("FileDownload");
 
 protected:
 
@@ -80,7 +88,9 @@ protected:
 
 	int32 FindTaskByGuid(const FGuid& InGuid) const;
 
-	TArray<DownloadTask*> TaskList;
+	TArray<TSharedPtr<DownloadTask>> TaskList;
 
 	int32 CurrentDoingWorks = 0;
+
+	bool bStopAll = false;
 };

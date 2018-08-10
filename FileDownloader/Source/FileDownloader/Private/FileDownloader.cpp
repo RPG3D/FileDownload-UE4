@@ -18,3 +18,5 @@ void FFileDownloaderModule::ShutdownModule()
 #undef LOCTEXT_NAMESPACE
 	
 IMPLEMENT_MODULE(FFileDownloaderModule, FileDownloader)
+
+DEFINE_LOG_CATEGORY(LogFileDownloader);

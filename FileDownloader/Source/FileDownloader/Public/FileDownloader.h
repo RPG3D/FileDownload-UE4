@@ -15,3 +15,5 @@ public:
 
 	//virtual void AddTask(struct FTaskInfomation& InTaskInfo);
 };
+
+DECLARE_LOG_CATEGORY_EXTERN(LogFileDownloader, Log, All);

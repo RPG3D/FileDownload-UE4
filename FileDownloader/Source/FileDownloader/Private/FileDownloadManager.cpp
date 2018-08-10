@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "FileDownloadManager.h"
+#include "DownloadTask.h"
 
 void UFileDownloadManager::Tick(float DeltaTime)
 {
@@ -43,23 +44,9 @@ void UFileDownloadManager::StartAll()
 	bStopAll = false;
 }
 
-void UFileDownloadManager::StartLast()
-{
-	if (TaskList.Num() < 1)
-	{
-		return;
-	}
-
-	TaskList.Last()->Start();
-}
-
 void UFileDownloadManager::StartTask(const FGuid& InGuid)
 {
 	int32 ret = FindTaskByGuid(InGuid);
-	if (ret >= 0)
-	{
-		TaskList[ret]->Start();
-	}
 }
 
 void UFileDownloadManager::StopAll()
@@ -70,6 +57,7 @@ void UFileDownloadManager::StopAll()
 	}
 
 	bStopAll = true;
+	CurrentDoingWorks = 0;
 }
 
 void UFileDownloadManager::StopTask(const FGuid& InGuid)
@@ -77,7 +65,11 @@ void UFileDownloadManager::StopTask(const FGuid& InGuid)
 	int32 ret = FindTaskByGuid(InGuid);
 	if (ret >= 0)
 	{
-		TaskList[ret]->Stop();
+		if (TaskList[ret]->GetState() == ETaskState::DOWNLOADING)
+		{
+			TaskList[ret]->Stop();
+			--CurrentDoingWorks;
+		}
 	}
 }
 
@@ -90,17 +82,6 @@ bool UFileDownloadManager::SaveTaskToJsonFile(const FGuid& InGuid, const FString
 	}
 
 	return TaskList[ret]->SaveTaskToJsonFile(InFileName);
-}
-
-bool UFileDownloadManager::ReadTaskFromJsonFile(const FGuid& InGuid, const FString& InFileName)
-{
-	int32 ret = FindTaskByGuid(InGuid);
-	if (ret < 0)
-	{
-		return false;
-	}
-
-	return TaskList[ret]->ReadTaskFromJsonFile(InFileName);
 }
 
 TArray<FTaskInformation> UFileDownloadManager::GetAllTaskInformation() const
@@ -119,7 +100,7 @@ FGuid UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& In
 	FString TmpDir = InDirectory;
 	if (TmpDir.IsEmpty())
 	{
-		TmpDir = FPaths::GameContentDir() + DefaultDirectory;
+		TmpDir = FPaths::ProjectDir() + DefaultDirectory;
 	}
 	TSharedPtr<DownloadTask>Task = MakeShareable(new DownloadTask(InUrl, TmpDir, InFileName));
 
@@ -154,7 +135,7 @@ FGuid UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& In
 void UFileDownloadManager::OnTaskEvent(ETaskEvent InEvent, const FTaskInformation& InInfo)
 {
 	OnDlManagerEvent.Broadcast(InEvent, InInfo);
-	if (InEvent == ETaskEvent::DOWNLOAD_COMPLETED)
+	if (InEvent >= ETaskEvent::DOWNLOAD_COMPLETED)
 	{
 		if (MaxParallelTask > 0)
 		{
@@ -166,7 +147,6 @@ void UFileDownloadManager::OnTaskEvent(ETaskEvent InEvent, const FTaskInformatio
 		{
 			TaskList.RemoveAt(Idx);
 		}
-		
 	}
 	return ;
 }
@@ -178,13 +158,12 @@ FString UFileDownloadManager::GetDownloadDirectory() const
 
 int32 UFileDownloadManager::FindTaskToDo() const
 {
-	int32 ret = -1;
+	int32 ret = INDEX_NONE;
 	for (int32 i = 0; i < TaskList.Num(); ++i)
 	{
-		if (TaskList[i]->GetState() < ETaskState::READY)
+		if (TaskList[i]->GetState() == ETaskState::WAIT && TaskList[i]->GetShouldStop() == false)
 		{
 			ret = i;
-			
 		}
 	}
 

@@ -4,32 +4,49 @@
 #include "Paths.h"
 #include "FileHelper.h"
 #include "PlatformFilemanager.h"
+#include "HttpModule.h"
+#include "IHttpRequest.h"
+#include "IHttpResponse.h"
+#include "GenericPlatform/GenericPlatformHttp.h"
 
-FString DownloadTask::TEMP_FILE_EXTERN = TEXT(".dlFile");
-FString DownloadTask::TASK_JSON = TEXT(".task");
+FString TEMP_FILE_EXTERN = TEXT(".dlFile");
+FString TASK_JSON = TEXT(".task");
 
 DownloadTask::DownloadTask()
 {
-	FString Dir = FPaths::GameContentDir() + TEXT("FileDownload");
-	if (IFileManager::Get().DirectoryExists(*Dir) == false)
+	FString Dir = FPaths::ProjectDir() + TEXT("FileDownload");
+#if PLATFORM_WINDOWS
+	if (FPlatformFileManager::Get().GetPlatformFile().DirectoryExists(*Dir) == false)
+#elif PLATFORM_ANDROID
+	if (FPlatformFileManager::Get().GetPlatformFile().GetLowerLevel()->DirectoryExists(*Dir) == false)
+#elif PLATFORM_IOS
+
+#endif
 	{
-		IFileManager::Get().MakeDirectory(*Dir);
+		FPlatformFileManager::Get().GetPlatformFile().CreateDirectoryTree(*Dir);
 	}
+
 	SetDirectory(Dir);
 }
 
 DownloadTask::DownloadTask(const FString& InUrl, const FString& InDirectory, const FString& InFileName)
 {
 	FString Dir = InDirectory;
-	if (IFileManager::Get().DirectoryExists(*Dir) == false)
+#if PLATFORM_WINDOWS
+	if (FPlatformFileManager::Get().GetPlatformFile().DirectoryExists(*Dir) == false)
+#elif PLATFORM_ANDROID
+	if (FPlatformFileManager::Get().GetPlatformFile().GetLowerLevel()->DirectoryExists(*Dir) == false)
+#elif PLATFORM_IOS
+
+#endif
 	{
-		if (IFileManager::Get().MakeDirectory(*Dir) == false)
+		if (FPlatformFileManager::Get().GetPlatformFile().CreateDirectoryTree(*Dir) == false)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Cannot create directory : %s"), *Dir);
+			UE_LOG(LogFileDownloader, Warning, TEXT("Cannot create directory : %s"), *Dir);
 		}
 	}
-	SetDirectory(Dir);
 
+	SetDirectory(Dir);
 	SetSourceUrl(InUrl);
 	SetFileName(InFileName);
 }
@@ -41,45 +58,47 @@ DownloadTask::~DownloadTask()
 		delete TargetFile;
 		TargetFile = nullptr;
 	}
+
+	if (Request.IsValid())
+	{
+		Request->CancelRequest();
+		Request.Reset();
+	}
 }
 
-FString DownloadTask::SetFileName(const FString& InFileName)
+void DownloadTask::SetFileName(const FString& InFileName)
 {
 	TaskInfo.FileName = InFileName;
-	return TaskInfo.FileName;
 }
 
-FString DownloadTask::GetFileName() const
+const FString& DownloadTask::GetFileName() const
 {
 	return TaskInfo.FileName;
 }
 
-FString DownloadTask::GetSourceUrl() const
+const FString& DownloadTask::GetSourceUrl() const
 {
 	return TaskInfo.SourceUrl;
 }
 
-FString DownloadTask::SetSourceUrl(const FString& InUrl)
+void DownloadTask::SetSourceUrl(const FString& InUrl)
 {
 	TaskInfo.SourceUrl = InUrl;
-	return GetSourceUrl();
 }
 
-FString DownloadTask::SetDirectory(const FString& InDirectory)
+void DownloadTask::SetDirectory(const FString& InDirectory)
 {
 	Directory = InDirectory;
-	return Directory;
 }
 
-FString DownloadTask::GetDirectory() const
+const FString& DownloadTask::GetDirectory() const
 {
 	return Directory;
 }
 
-int32 DownloadTask::SetTotalSize(int32 InTotalSize)
+void DownloadTask::SetTotalSize(int32 InTotalSize)
 {
 	TaskInfo.TotalSize = InTotalSize;
-	return TaskInfo.TotalSize;
 }
 
 int32 DownloadTask::GetTotalSize() const
@@ -87,10 +106,9 @@ int32 DownloadTask::GetTotalSize() const
 	return TaskInfo.TotalSize;
 }
 
-int32 DownloadTask::SetCurrentSize(int32 InCurrentSize)
+void DownloadTask::SetCurrentSize(int32 InCurrentSize)
 {
 	TaskInfo.CurrentSize = InCurrentSize;
-	return TaskInfo.CurrentSize;
 }
 
 int32 DownloadTask::GetCurrentSize() const
@@ -113,21 +131,27 @@ int32 DownloadTask::GetPercentage() const
 	
 }
 
-FString DownloadTask::SetETag(const FString& ETag)
+void DownloadTask::SetETag(const FString& ETag)
 {
 	TaskInfo.ETag = ETag;
-	return TaskInfo.ETag;
 }
 
-FString DownloadTask::GetETag() const
+const FString& DownloadTask::GetETag() const
 {
 	return TaskInfo.ETag;
 }
 
-bool DownloadTask::IsTargetFileExist() const
+bool DownloadTask::IsFileExist(const FString& InFullFileName/*=FString("")*/) const
 {
-	FString FullFileName = GetDirectory() + TEXT("/") + GetFileName();
-	return IFileManager::Get().FileExists(*FullFileName);
+	FString FullFileName = InFullFileName.IsEmpty() ? GetFullFileName() : InFullFileName;
+#if PLATFORM_WINDOWS
+	return FPlatformFileManager::Get().GetPlatformFile().FileExists(*FullFileName);
+#elif PLATFORM_ANDROID
+	return FPlatformFileManager::Get().GetPlatformFile().GetLowerLevel()->FileExists(*FullFileName);
+#elif PLATFORM_IOS
+
+#endif
+	return FPlatformFileManager::Get().GetPlatformFile().FileExists(*FullFileName);
 }
 
 bool DownloadTask::Start()
@@ -141,7 +165,7 @@ bool DownloadTask::Start()
 	bShouldStop = false;
 
 	//error occurs!!! URL and file cannot be empty
-	if (TaskInfo.SourceUrl.IsEmpty() || TaskInfo.FileName.IsEmpty())
+	if (GetSourceUrl().IsEmpty() || GetFileName().IsEmpty())
 	{
 		TaskState = ETaskState::ERROR;
 		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
@@ -149,7 +173,7 @@ bool DownloadTask::Start()
 	}
 
 	//if target file already exist, make this task complete. 
-	if (IsTargetFileExist() == true)
+	if (IsFileExist() == true)
 	{
 		OnTaskCompleted();
 		return true;
@@ -172,6 +196,8 @@ bool DownloadTask::Start()
 
 bool DownloadTask::Stop()
 {
+	bShouldStop = true;
+
 	//release file handle when task stopped.
 	if (TargetFile != nullptr)
 	{
@@ -179,11 +205,26 @@ bool DownloadTask::Stop()
 		TargetFile = nullptr;
 	}
 
-	TaskState = ETaskState::STOPED;
-	bShouldStop = true;
+	if (GetState() >= ETaskState::COMPLETED)
+	{
+		return false;
+	}
+
+	TaskState = ETaskState::WAIT;
 	ProcessTaskEvent(ETaskEvent::STOP, TaskInfo);
 
+	if (Request.IsValid())
+	{
+		Request->CancelRequest();
+		Request.Reset();
+	}
+
 	return true;
+}
+
+bool DownloadTask::GetShouldStop() const
+{
+	return bShouldStop;
 }
 
 FGuid DownloadTask::GetGuid() const
@@ -193,7 +234,7 @@ FGuid DownloadTask::GetGuid() const
 
 bool DownloadTask::IsDownloading() const
 {
-	return TaskState >= ETaskState::READY && TaskState < ETaskState::COMPLETED && TaskState != ETaskState::STOPED;
+	return TaskState == ETaskState::DOWNLOADING;
 }
 
 FTaskInformation DownloadTask::GetTaskInformation() const
@@ -216,31 +257,74 @@ bool DownloadTask::SaveTaskToJsonFile(const FString& InFileName) const
 	
 	FString OutStr;
 	TaskInfo.SerializeToJsonString(OutStr);
-	return FFileHelper::SaveStringToFile(OutStr, *TmpName);
+	IFileHandle* JsonFile = FPlatformFileManager::Get().GetPlatformFile().OpenWrite(*InFileName);
+	if (JsonFile)
+	{
+		JsonFile->Write((uint8*)OutStr.GetCharArray().GetData(), OutStr.GetCharArray().Num());
+		JsonFile->Flush();
+		delete JsonFile;
+
+		return true;
+	}
+	else
+	{
+		return false;
+	}
 }
 
 bool DownloadTask::ReadTaskFromJsonFile(const FString& InFileName)
 {
-	FString FileData;
-	if (FFileHelper::LoadFileToString(FileData, *InFileName) == false)
+	FString FileString;
+	IFileHandle* JsonFile = FPlatformFileManager::Get().GetPlatformFile().OpenRead(*InFileName);
+	if (JsonFile)
+	{
+		TArray<uint8> FileData;
+		FileData.Init(0, JsonFile->Size());
+		JsonFile->Read(FileData.GetData(), FileData.Num());
+		FFileHelper::BufferToString(FileString, FileData.GetData(), FileData.Num());
+
+		delete JsonFile;
+		return TaskInfo.DeserializeFromJsonString(FileString);
+	}
+	else
 	{
 		return false;
 	}
-
-	return TaskInfo.DeserializeFromJsonString(FileData);
 }
 
 void DownloadTask::GetHead()
 {
-	TSharedRef<IHttpRequest> dlRequest = FHttpModule::Get().CreateRequest();
+	Request = FHttpModule::Get().CreateRequest();
 
-	dlRequest->SetVerb("HEAD");
-	dlRequest->SetURL(GetSourceUrl());
-	dlRequest->OnProcessRequestComplete().BindRaw(this, &DownloadTask::OnGetHeadCompleted);
-	dlRequest->ProcessRequest();
+	EncodedUrl = GetSourceUrl();
 
-	TaskState = ETaskState::READY;
-	ProcessTaskEvent(ETaskEvent::GET_HEAD, TaskInfo);
+	//https://www.google.com/
+	static int32 URLTag = 8;
+	int32 StartSlash = GetSourceUrl().Find(FString("/"), ESearchCase::IgnoreCase, ESearchDir::FromStart, URLTag);
+	if (StartSlash > INDEX_NONE)
+	{
+		FString UrlLeft = GetSourceUrl().Left(StartSlash);
+		FString UrlRight = GetSourceUrl().Mid(StartSlash);
+		TArray<FString> UrlDirectory;
+		UrlRight.ParseIntoArray(UrlDirectory, *FString("/"));
+
+		EncodedUrl = UrlLeft;
+
+		for (int32 i = 0; i < UrlDirectory.Num(); ++i)
+		{
+			UrlDirectory[i] = FGenericPlatformHttp::UrlEncode(UrlDirectory[i]);
+			EncodedUrl += FString("/");
+			EncodedUrl += UrlDirectory[i];
+		}
+	}
+
+	Request->SetVerb("HEAD");
+	Request->SetURL(EncodedUrl);
+	Request->OnProcessRequestComplete().BindRaw(this, &DownloadTask::OnGetHeadCompleted);
+	Request->ProcessRequest();
+
+	TaskState = ETaskState::DOWNLOADING;
+	ProcessTaskEvent(ETaskEvent::START_DOWNLOAD, TaskInfo);
 }
 
 void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bWasSuccessful)
@@ -248,7 +332,7 @@ void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePt
 	//we should check return code first to ensure the URL & network is OK.
 	if (InResponse.IsValid() == false || bWasSuccessful == false)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("OnGetHeadCompleted Response error"));
+		UE_LOG(LogFileDownloader, Warning, TEXT("OnGetHeadCompleted Response error"));
 		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
 		return;
 	}
@@ -256,7 +340,7 @@ void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePt
 
 	if (RetutnCode >= 400 || RetutnCode < 200)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Http return code error : %d"), RetutnCode);
+		UE_LOG(LogFileDownloader, Warning, TEXT("Http return code error : %d"), RetutnCode);
 		if (TargetFile != nullptr)
 		{
 			delete TargetFile;
@@ -274,26 +358,29 @@ void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePt
 		SetCurrentSize(0);
 	}
 
-	TmpFullName = GetFullFileName() + TEMP_FILE_EXTERN;
-	bool bIsTmpFIleExist = IFileManager::Get().FileExists(*TmpFullName);
-	if (bIsTmpFIleExist == false)
+	if (IsFileExist(GetFullFileName() + TEMP_FILE_EXTERN) == false)
 	{
 		SetCurrentSize(0);
 	}
 
-	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
-	TargetFile = PlatformFile.OpenWrite(*TmpFullName, true);
+#if PLATFORM_WINDOWS
+	IPlatformFile* PlatformFile = &FPlatformFileManager::Get().GetPlatformFile();
+#elif PLATFORM_ANDROID
+	IPlatformFile* PlatformFile = &FPlatformFileManager::Get().GetPlatformFile().GetLowerLevel();
+#elif PLATFORM_IOS
+
+#endif
+	TargetFile = PlatformFile->OpenWrite(*FString(GetFullFileName() + TEMP_FILE_EXTERN), true);
 	if (TargetFile == nullptr)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("%s, %d, create temp file error !"));
+		UE_LOG(LogFileDownloader, Warning, TEXT("%s, %d, create temp file error !"));
 		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
-		bShouldStop = true;
+		TaskState = ETaskState::ERROR;
 		return;
 	}
 
-	if (bShouldStop == false)
+	if (GetShouldStop() == false)
 	{
-		TaskState = ETaskState::BEING_DOWNLOADING;
 		StartChunk();
 	}
 }
@@ -301,10 +388,8 @@ void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePt
 void DownloadTask::StartChunk()
 {
 	//start download a chunk
-	TSharedRef<IHttpRequest> dlRequest = FHttpModule::Get().CreateRequest();
-	
-	dlRequest->SetVerb("GET");
-	dlRequest->SetURL(GetSourceUrl());
+	Request->SetVerb("GET");
+	Request->SetURL(EncodedUrl);
 
 	int32 StartPostion = GetCurrentSize();
 	int32 EndPosition = StartPostion + ChunkSize - 1;
@@ -314,10 +399,10 @@ void DownloadTask::StartChunk()
 		EndPosition = GetTotalSize() - 1;
 	}
 	FString RangeStr = FString("bytes=") + FString::FromInt(StartPostion) + FString(TEXT("-")) + FString::FromInt(EndPosition);
-	dlRequest->AppendToHeader(FString("Range"), RangeStr);
+	Request->AppendToHeader(FString("Range"), RangeStr);
 
-	dlRequest->OnProcessRequestComplete().BindRaw(this, &DownloadTask::OnGetChunkCompleted);
-	dlRequest->ProcessRequest();
+	Request->OnProcessRequestComplete().BindRaw(this, &DownloadTask::OnGetChunkCompleted);
+	Request->ProcessRequest();
 }
 
 FString DownloadTask::GetFullFileName() const
@@ -333,7 +418,7 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 	}
 	if (InResponse.IsValid() == false || bWasSuccessful == false)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("OnGetHeadCompleted Response error"));
+		UE_LOG(LogFileDownloader, Warning, TEXT("OnGetHeadCompleted Response error"));
 		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
 		return;
 	}
@@ -341,7 +426,7 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 
 	if (RetCode >= 400 || RetCode < 200)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("%d, Return code error !"), InResponse->GetResponseCode());
+		UE_LOG(LogFileDownloader, Warning, TEXT("%d, Return code error !"), InResponse->GetResponseCode());
 		if (TargetFile != nullptr)
 		{
 			delete TargetFile;
@@ -354,24 +439,30 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 	DataBuffer = InResponse->GetContent();
 
 	//Async write chunk buffer to file 
-	FFunctionGraphTask::CreateAndDispatchWhenReady([this]()
+	Async<void>(EAsyncExecution::ThreadPool, [this]()
 	{
 		if (this->TargetFile != nullptr)
 		{
 			this->TargetFile->Seek(this->GetCurrentSize());
-			if (this->TargetFile->Write(DataBuffer.GetData(), DataBuffer.Num()) == true)
+			bool bWriteRet = this->TargetFile->Write(DataBuffer.GetData(), DataBuffer.Num());
+			if (bWriteRet)
 			{
-				this->OnWriteChunkEnd(this->DataBuffer.Num());
-				
+				//返回主线程执行
+				FFunctionGraphTask::CreateAndDispatchWhenReady([this]() {
+					this->OnWriteChunkEnd(this->DataBuffer.Num());
+				}, TStatId(), nullptr, ENamedThreads::GameThread);
 			}
 			else
 			{
-				UE_LOG(LogTemp, Warning, TEXT("%s, %d, Async write file error !"), __FUNCTION__, __LINE__);
-				this->ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, this->TaskInfo);
+				//返回主线程执行
+				FFunctionGraphTask::CreateAndDispatchWhenReady([this]() {
+					UE_LOG(LogFileDownloader, Warning, TEXT("%s, %d, Async write file error !"), __FUNCTION__, __LINE__);
+					this->ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, this->TaskInfo);
+				}, TStatId(), nullptr, ENamedThreads::GameThread);
+
 			}
 		}
-	}
-	, TStatId(), nullptr, ENamedThreads::AnyThread);
+	});
 }
 
 void DownloadTask::OnTaskCompleted()
@@ -383,11 +474,17 @@ void DownloadTask::OnTaskCompleted()
 		TargetFile = nullptr;
 	}
 
+	if (Request.IsValid())
+	{
+		Request->CancelRequest();
+		Request.Reset();
+	}
+
 	//Change file name if target file does not exist.
-	if (IsTargetFileExist() == false)
+	if (IsFileExist() == false)
 	{
 		//change temp file name to target file name.
-		if (IFileManager::Get().Move(*GetFullFileName(), *this->TmpFullName) == true)
+		if (FPlatformFileManager::Get().GetPlatformFile().MoveFile(*GetFullFileName(), *FString(GetFullFileName() + TEMP_FILE_EXTERN)) == true)
 		{
 			TaskState = ETaskState::COMPLETED;
 			ProcessTaskEvent(ETaskEvent::DOWNLOAD_COMPLETED, TaskInfo);
@@ -395,34 +492,29 @@ void DownloadTask::OnTaskCompleted()
 		else
 		{
 			//error when changing file name.
-			UE_LOG(LogTemp, Warning, TEXT("%s, %d, Change temp file name error !"), __FUNCTION__, __LINE__);
+			UE_LOG(LogFileDownloader, Warning, TEXT("%s, %d, Change temp file name error !"), __FUNCTION__, __LINE__);
 			ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
 			TaskState = ETaskState::ERROR;
 		}
 	}
 	else
 	{
-		SetTotalSize(IFileManager::Get().FileSize(*GetFullFileName()));
-		if (GetCurrentSize() != GetTotalSize())
-		{
-			SetCurrentSize(GetTotalSize());
-		}
-
 		TaskState = ETaskState::COMPLETED;
 		ProcessTaskEvent(ETaskEvent::DOWNLOAD_COMPLETED, TaskInfo);
 	}
 }
 
-void DownloadTask::OnWriteChunkEnd(int32 WroteSize)
+void DownloadTask::OnWriteChunkEnd(int32 DataSize)
 {
 	if (bShouldStop == true)
 	{
-		TaskState = ETaskState::STOPED;
+		TaskState = ETaskState::WAIT;
 		ProcessTaskEvent(ETaskEvent::STOP, TaskInfo);
+		Request->CancelRequest();
 		return;
 	}
 	//update progress
-	SetCurrentSize(GetCurrentSize() + WroteSize);
+	SetCurrentSize(GetCurrentSize() + DataSize);
 	//broadcast event
 	ProcessTaskEvent(ETaskEvent::DOWNLOAD_UPDATE, TaskInfo);
 

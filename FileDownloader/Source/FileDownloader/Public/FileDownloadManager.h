@@ -4,9 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "TaskInformation.h"
-#include "DownloadTask.h"
 #include "Tickable.h"
 #include "FileDownloadManager.Generated.h"
+
+
+class DownloadTask;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FDLManagerDelegate, ETaskEvent, InEvent, FTaskInformation, InInfo);
 
@@ -25,9 +27,6 @@ public:
 		void StartAll();
 
 	UFUNCTION(BlueprintCallable)
-		void StartLast();
-
-	UFUNCTION(BlueprintCallable)
 		void StartTask(const FGuid& InGuid);
 
 	UFUNCTION(BlueprintCallable)
@@ -43,13 +42,6 @@ public:
 	UFUNCTION(BlueprintCallable)
 		bool SaveTaskToJsonFile(const FGuid& InGuid, const FString& InFileName);
 
-	/*
-	*read a task describe file and assign it to current task
-	@Param InFileName can not be empty. (example : "C:/FileDir/task_0.task")
-	*/
-	UFUNCTION(BlueprintCallable)
-		bool ReadTaskFromJsonFile(const FGuid& InGuid, const FString& InFileName);
-
 	UFUNCTION(BlueprintCallable)
 		TArray<FTaskInformation> GetAllTaskInformation() const;
 
@@ -61,8 +53,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable)
 		FGuid AddTaskByUrl(const FString& InUrl, const FString& InDirectory = TEXT(""), const FString& InFileName = TEXT(""));
-
-	void OnTaskEvent(ETaskEvent InEvent, const FTaskInformation& InInfo);
 
 	UFUNCTION(BlueprintCallable)
 		FString GetDownloadDirectory() const;
@@ -83,6 +73,8 @@ public:
 		FString DefaultDirectory = TEXT("FileDownload");
 
 protected:
+
+	void OnTaskEvent(ETaskEvent InEvent, const FTaskInformation& InInfo);
 
 	int32 FindTaskToDo() const;
 

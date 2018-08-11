@@ -100,7 +100,13 @@ FGuid UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& In
 	FString TmpDir = InDirectory;
 	if (TmpDir.IsEmpty())
 	{
-		TmpDir = FPaths::ProjectDir() + DefaultDirectory;
+		//https://www.google.com/
+		static int32 URLTag = 8;
+		int32 StartSlash = InUrl.Find(FString("/"), ESearchCase::IgnoreCase, ESearchDir::FromStart, URLTag);
+		int32 LastSlash = InUrl.Find(FString("/"), ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+		FString UrlDirectory = InUrl.Mid(StartSlash, LastSlash - StartSlash);
+
+		TmpDir = FPaths::ProjectDir() + UrlDirectory;
 	}
 	TSharedPtr<DownloadTask>Task = MakeShareable(new DownloadTask(InUrl, TmpDir, InFileName));
 
@@ -113,7 +119,7 @@ FGuid UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& In
 
 	for (int32 i = 0; i < TaskList.Num(); ++i)
 	{
-		if (TaskList[i]->GetGuid() == Task->GetGuid())
+		if (TaskList[i]->GetSourceUrl() == Task->GetSourceUrl())
 		{
 			//任务存在于任务列表
 			return TaskList[i]->GetGuid();
@@ -135,11 +141,11 @@ FGuid UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& In
 void UFileDownloadManager::OnTaskEvent(ETaskEvent InEvent, const FTaskInformation& InInfo)
 {
 	OnDlManagerEvent.Broadcast(InEvent, InInfo);
-	if (InEvent >= ETaskEvent::DOWNLOAD_COMPLETED)
+	if (InEvent >= ETaskEvent::STOP)
 	{
-		if (MaxParallelTask > 0)
+		if (CurrentDoingWorks > 0)
 		{
-			--MaxParallelTask;
+			--CurrentDoingWorks;
 		}
 
 		int32 Idx = FindTaskByGuid(InInfo.GetGuid());

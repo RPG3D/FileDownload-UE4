@@ -21,6 +21,8 @@ public:
 
 	DownloadTask(const FString& InUrl, const FString& InDirectory, const FString& InFileName);
 
+	DownloadTask(const FTaskInformation& InTaskInfo);
+
 	virtual ~DownloadTask();
 
 	virtual void SetFileName(const FString& InFileName);
@@ -67,8 +69,6 @@ public:
 	
 	bool SaveTaskToJsonFile(const FString& InFileName) const;
 
-	bool ReadTaskFromJsonFile(const FString& InFileName);
-
 	//callback for notifying download events
 	TFunction<void(ETaskEvent InEvent, const FTaskInformation& InInfo)> ProcessTaskEvent = [this](ETaskEvent InEvent, const FTaskInformation& InInfo) 
 	{
@@ -95,17 +95,17 @@ protected:
 	virtual void OnWriteChunkEnd(int32 DataSize);
 
 	FTaskInformation TaskInfo;
-	FString Directory;
 
 	bool bShouldStop = false;
-
 	ETaskState TaskState = ETaskState::WAIT;
+	
 	//2MB as one section to download
-	const int32 ChunkSize = 2 * 1024 * 1024;
+	int32 ChunkSize = 2 * 1024 * 1024;
+
 	TArray<uint8> DataBuffer;
-
+	
 	FString EncodedUrl;
-
+	
 	IFileHandle* TargetFile = nullptr;
 
 	TSharedPtr<IHttpRequest> Request = nullptr;

@@ -12,35 +12,28 @@
 FString TEMP_FILE_EXTERN = TEXT(".dlFile");
 FString TASK_JSON = TEXT(".task");
 
+IPlatformFile* PlatformFile = nullptr;
+
 DownloadTask::DownloadTask()
 {
-	FString Dir = FPaths::ProjectDir() + TEXT("FileDownload");
-#if PLATFORM_WINDOWS
-	if (FPlatformFileManager::Get().GetPlatformFile().DirectoryExists(*Dir) == false)
-#elif PLATFORM_ANDROID
-	if (FPlatformFileManager::Get().GetPlatformFile().GetLowerLevel()->DirectoryExists(*Dir) == false)
-#elif PLATFORM_IOS
-
-#endif
+	if (PlatformFile == nullptr)
 	{
-		FPlatformFileManager::Get().GetPlatformFile().CreateDirectoryTree(*Dir);
+		PlatformFile = &FPlatformFileManager::Get().GetPlatformFile();
+		if (PlatformFile->GetLowerLevel())
+		{
+			PlatformFile = PlatformFile->GetLowerLevel();
+		}
 	}
-
-	SetDirectory(Dir);
 }
 
 DownloadTask::DownloadTask(const FString& InUrl, const FString& InDirectory, const FString& InFileName)
+	: DownloadTask()
 {
-	FString Dir = InDirectory;
-#if PLATFORM_WINDOWS
-	if (FPlatformFileManager::Get().GetPlatformFile().DirectoryExists(*Dir) == false)
-#elif PLATFORM_ANDROID
-	if (FPlatformFileManager::Get().GetPlatformFile().GetLowerLevel()->DirectoryExists(*Dir) == false)
-#elif PLATFORM_IOS
+	const FString& Dir = InDirectory;
 
-#endif
+	if (PlatformFile->DirectoryExists(*Dir) == false)
 	{
-		if (FPlatformFileManager::Get().GetPlatformFile().CreateDirectoryTree(*Dir) == false)
+		if (PlatformFile->CreateDirectoryTree(*Dir) == false)
 		{
 			UE_LOG(LogFileDownloader, Warning, TEXT("Cannot create directory : %s"), *Dir);
 		}
@@ -49,6 +42,22 @@ DownloadTask::DownloadTask(const FString& InUrl, const FString& InDirectory, con
 	SetDirectory(Dir);
 	SetSourceUrl(InUrl);
 	SetFileName(InFileName);
+}
+
+DownloadTask::DownloadTask(const FTaskInformation& InTaskInfo)
+	: DownloadTask()
+{
+	const FString& Dir = InTaskInfo.DestDirectory;
+
+	if (PlatformFile->DirectoryExists(*Dir) == false)
+	{
+		if (PlatformFile->CreateDirectoryTree(*Dir) == false)
+		{
+			UE_LOG(LogFileDownloader, Warning, TEXT("Cannot create directory : %s"), *Dir);
+		}
+	}
+
+	TaskInfo = InTaskInfo;
 }
 
 DownloadTask::~DownloadTask()
@@ -62,6 +71,7 @@ DownloadTask::~DownloadTask()
 	if (Request.IsValid())
 	{
 		Request->CancelRequest();
+		Request->OnProcessRequestComplete().Unbind();
 		Request.Reset();
 	}
 }
@@ -88,12 +98,12 @@ void DownloadTask::SetSourceUrl(const FString& InUrl)
 
 void DownloadTask::SetDirectory(const FString& InDirectory)
 {
-	Directory = InDirectory;
+	TaskInfo.DestDirectory = InDirectory;
 }
 
 const FString& DownloadTask::GetDirectory() const
 {
-	return Directory;
+	return TaskInfo.DestDirectory;
 }
 
 void DownloadTask::SetTotalSize(int32 InTotalSize)
@@ -144,14 +154,8 @@ const FString& DownloadTask::GetETag() const
 bool DownloadTask::IsFileExist(const FString& InFullFileName/*=FString("")*/) const
 {
 	FString FullFileName = InFullFileName.IsEmpty() ? GetFullFileName() : InFullFileName;
-#if PLATFORM_WINDOWS
-	return FPlatformFileManager::Get().GetPlatformFile().FileExists(*FullFileName);
-#elif PLATFORM_ANDROID
-	return FPlatformFileManager::Get().GetPlatformFile().GetLowerLevel()->FileExists(*FullFileName);
-#elif PLATFORM_IOS
 
-#endif
-	return FPlatformFileManager::Get().GetPlatformFile().FileExists(*FullFileName);
+	return PlatformFile->FileExists(*FullFileName);
 }
 
 bool DownloadTask::Start()
@@ -216,6 +220,7 @@ bool DownloadTask::Stop()
 	if (Request.IsValid())
 	{
 		Request->CancelRequest();
+		Request->OnProcessRequestComplete().Unbind();
 		Request.Reset();
 	}
 
@@ -257,7 +262,7 @@ bool DownloadTask::SaveTaskToJsonFile(const FString& InFileName) const
 	
 	FString OutStr;
 	TaskInfo.SerializeToJsonString(OutStr);
-	IFileHandle* JsonFile = FPlatformFileManager::Get().GetPlatformFile().OpenWrite(*InFileName);
+	IFileHandle* JsonFile = PlatformFile->OpenWrite(*InFileName);
 	if (JsonFile)
 	{
 		JsonFile->Write((uint8*)OutStr.GetCharArray().GetData(), OutStr.GetCharArray().Num());
@@ -265,26 +270,6 @@ bool DownloadTask::SaveTaskToJsonFile(const FString& InFileName) const
 		delete JsonFile;
 
 		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-
-bool DownloadTask::ReadTaskFromJsonFile(const FString& InFileName)
-{
-	FString FileString;
-	IFileHandle* JsonFile = FPlatformFileManager::Get().GetPlatformFile().OpenRead(*InFileName);
-	if (JsonFile)
-	{
-		TArray<uint8> FileData;
-		FileData.Init(0, JsonFile->Size());
-		JsonFile->Read(FileData.GetData(), FileData.Num());
-		FFileHelper::BufferToString(FileString, FileData.GetData(), FileData.Num());
-
-		delete JsonFile;
-		return TaskInfo.DeserializeFromJsonString(FileString);
 	}
 	else
 	{
@@ -333,6 +318,7 @@ void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePt
 	if (InResponse.IsValid() == false || bWasSuccessful == false)
 	{
 		UE_LOG(LogFileDownloader, Warning, TEXT("OnGetHeadCompleted Response error"));
+		TaskState = ETaskState::ERROR;
 		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
 		return;
 	}
@@ -346,30 +332,31 @@ void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePt
 			delete TargetFile;
 			TargetFile = nullptr;
 		}
+
+		TaskState = ETaskState::ERROR;
 		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
 		return;
+	}
+
+	SetTotalSize(InResponse->GetContentLength());
+	if (GetTotalSize() > 200 * 1024 * 1024)
+	{
+		ChunkSize = 4 * 1024 * 1024;
 	}
 
 	//the remote file has updated,we need to re-download
 	if (InResponse->GetHeader("ETag") != TaskInfo.ETag)
 	{
 		SetETag(InResponse->GetHeader(FString("ETag")));
-		SetTotalSize(InResponse->GetContentLength());
 		SetCurrentSize(0);
 	}
 
+	//the local file is removed,we need to re-download
 	if (IsFileExist(GetFullFileName() + TEMP_FILE_EXTERN) == false)
 	{
 		SetCurrentSize(0);
 	}
 
-#if PLATFORM_WINDOWS
-	IPlatformFile* PlatformFile = &FPlatformFileManager::Get().GetPlatformFile();
-#elif PLATFORM_ANDROID
-	IPlatformFile* PlatformFile = &FPlatformFileManager::Get().GetPlatformFile().GetLowerLevel();
-#elif PLATFORM_IOS
-
-#endif
 	TargetFile = PlatformFile->OpenWrite(*FString(GetFullFileName() + TEMP_FILE_EXTERN), true);
 	if (TargetFile == nullptr)
 	{
@@ -399,7 +386,7 @@ void DownloadTask::StartChunk()
 		EndPosition = GetTotalSize() - 1;
 	}
 	FString RangeStr = FString("bytes=") + FString::FromInt(StartPostion) + FString(TEXT("-")) + FString::FromInt(EndPosition);
-	Request->AppendToHeader(FString("Range"), RangeStr);
+	Request->SetHeader(FString("Range"), RangeStr);
 
 	Request->OnProcessRequestComplete().BindRaw(this, &DownloadTask::OnGetChunkCompleted);
 	Request->ProcessRequest();
@@ -419,6 +406,7 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 	if (InResponse.IsValid() == false || bWasSuccessful == false)
 	{
 		UE_LOG(LogFileDownloader, Warning, TEXT("OnGetHeadCompleted Response error"));
+		TaskState = ETaskState::ERROR;
 		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
 		return;
 	}
@@ -432,6 +420,7 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 			delete TargetFile;
 			TargetFile = nullptr;
 		}
+		TaskState = ETaskState::ERROR;
 		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
 		return;
 	}
@@ -447,16 +436,18 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 			bool bWriteRet = this->TargetFile->Write(DataBuffer.GetData(), DataBuffer.Num());
 			if (bWriteRet)
 			{
-				//返回主线程执行
+				this->TargetFile->Flush();
+				//return to game thread
 				FFunctionGraphTask::CreateAndDispatchWhenReady([this]() {
 					this->OnWriteChunkEnd(this->DataBuffer.Num());
 				}, TStatId(), nullptr, ENamedThreads::GameThread);
 			}
 			else
 			{
-				//返回主线程执行
+				//return to game thread
 				FFunctionGraphTask::CreateAndDispatchWhenReady([this]() {
 					UE_LOG(LogFileDownloader, Warning, TEXT("%s, %d, Async write file error !"), __FUNCTION__, __LINE__);
+					this->TaskState = ETaskState::ERROR;
 					this->ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, this->TaskInfo);
 				}, TStatId(), nullptr, ENamedThreads::GameThread);
 
@@ -484,7 +475,7 @@ void DownloadTask::OnTaskCompleted()
 	if (IsFileExist() == false)
 	{
 		//change temp file name to target file name.
-		if (FPlatformFileManager::Get().GetPlatformFile().MoveFile(*GetFullFileName(), *FString(GetFullFileName() + TEMP_FILE_EXTERN)) == true)
+		if (PlatformFile->MoveFile(*GetFullFileName(), *FString(GetFullFileName() + TEMP_FILE_EXTERN)) == true)
 		{
 			TaskState = ETaskState::COMPLETED;
 			ProcessTaskEvent(ETaskEvent::DOWNLOAD_COMPLETED, TaskInfo);
@@ -515,11 +506,10 @@ void DownloadTask::OnWriteChunkEnd(int32 DataSize)
 	}
 	//update progress
 	SetCurrentSize(GetCurrentSize() + DataSize);
-	//broadcast event
-	ProcessTaskEvent(ETaskEvent::DOWNLOAD_UPDATE, TaskInfo);
 
 	if (GetCurrentSize() < GetTotalSize())
 	{
+		ProcessTaskEvent(ETaskEvent::DOWNLOAD_UPDATE, TaskInfo);
 		//download next chunk when wrote ended
 		StartChunk();
 	}

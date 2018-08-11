@@ -57,8 +57,6 @@ public:
 
 	virtual bool Stop();
 
-	virtual bool GetShouldStop() const;
-
 	FGuid GetGuid() const;
 
 	virtual bool IsDownloading() const;
@@ -67,6 +65,10 @@ public:
 
 	ETaskState GetState() const;
 	
+	virtual bool GetNeedStop() const;
+
+	virtual void SetNeedStop(bool bStop);
+
 	bool SaveTaskToJsonFile(const FString& InFileName) const;
 
 	//callback for notifying download events
@@ -96,7 +98,6 @@ protected:
 
 	FTaskInformation TaskInfo;
 
-	bool bShouldStop = false;
 	ETaskState TaskState = ETaskState::WAIT;
 	
 	//2MB as one section to download
@@ -109,4 +110,6 @@ protected:
 	IFileHandle* TargetFile = nullptr;
 
 	TSharedPtr<IHttpRequest> Request = nullptr;
+
+	bool bNeedStop = false;
 };

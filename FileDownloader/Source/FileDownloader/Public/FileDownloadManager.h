@@ -65,7 +65,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		float TickInterval = 0.5f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-		int32 MaxParallelTask = 4;
+		int32 MaxParallelTask = 5;
 	UPROPERTY(BlueprintAssignable)
 		FDLManagerDelegate OnDlManagerEvent;
 

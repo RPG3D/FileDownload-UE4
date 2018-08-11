@@ -42,11 +42,23 @@ UFileDownloadManager::UFileDownloadManager()
 void UFileDownloadManager::StartAll()
 {
 	bStopAll = false;
+
+	for (int32 i =0; i < TaskList.Num(); ++i)
+	{
+		TaskList[i]->SetNeedStop(false);
+	}
 }
 
 void UFileDownloadManager::StartTask(const FGuid& InGuid)
 {
 	int32 ret = FindTaskByGuid(InGuid);
+	if (ret > INDEX_NONE)
+	{
+		if (CurrentDoingWorks < MaxParallelTask && TaskList[ret]->Start())
+		{
+			++CurrentDoingWorks;
+		}
+	}
 }
 
 void UFileDownloadManager::StopAll()
@@ -141,7 +153,7 @@ FGuid UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& In
 void UFileDownloadManager::OnTaskEvent(ETaskEvent InEvent, const FTaskInformation& InInfo)
 {
 	OnDlManagerEvent.Broadcast(InEvent, InInfo);
-	if (InEvent >= ETaskEvent::STOP)
+	if (InEvent >= ETaskEvent::DOWNLOAD_COMPLETED)
 	{
 		if (CurrentDoingWorks > 0)
 		{
@@ -167,7 +179,7 @@ int32 UFileDownloadManager::FindTaskToDo() const
 	int32 ret = INDEX_NONE;
 	for (int32 i = 0; i < TaskList.Num(); ++i)
 	{
-		if (TaskList[i]->GetState() == ETaskState::WAIT && TaskList[i]->GetShouldStop() == false)
+		if (TaskList[i]->GetState() == ETaskState::WAIT && TaskList[i]->GetNeedStop() == false)
 		{
 			ret = i;
 		}

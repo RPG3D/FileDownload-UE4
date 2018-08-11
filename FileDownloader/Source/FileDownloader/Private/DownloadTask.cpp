@@ -14,6 +14,7 @@ FString TASK_JSON = TEXT(".task");
 
 IPlatformFile* PlatformFile = nullptr;
 
+
 DownloadTask::DownloadTask()
 {
 	if (PlatformFile == nullptr)
@@ -160,13 +161,12 @@ bool DownloadTask::IsFileExist(const FString& InFullFileName/*=FString("")*/) co
 
 bool DownloadTask::Start()
 {
+	SetNeedStop(false);
 	//Set target file name
 	if (GetFileName().IsEmpty() == true)
 	{
 		SetFileName(FPaths::GetCleanFilename(GetSourceUrl()));
 	}
-
-	bShouldStop = false;
 
 	//error occurs!!! URL and file cannot be empty
 	if (GetSourceUrl().IsEmpty() || GetFileName().IsEmpty())
@@ -180,14 +180,14 @@ bool DownloadTask::Start()
 	if (IsFileExist() == true)
 	{
 		OnTaskCompleted();
-		return true;
+		return false;
 	}
 
 	
 	//ignore if already being downloading.
 	if (IsDownloading())
 	{
-		return true;
+		return false;
 	}
 
 
@@ -200,36 +200,13 @@ bool DownloadTask::Start()
 
 bool DownloadTask::Stop()
 {
-	bShouldStop = true;
-
-	//release file handle when task stopped.
-	if (TargetFile != nullptr)
+	if (GetState() == ETaskState::DOWNLOADING)
 	{
-		delete TargetFile;
-		TargetFile = nullptr;
+		SetNeedStop(true);
+		return true;
 	}
 
-	if (GetState() >= ETaskState::COMPLETED)
-	{
-		return false;
-	}
-
-	TaskState = ETaskState::WAIT;
-	ProcessTaskEvent(ETaskEvent::STOP, TaskInfo);
-
-	if (Request.IsValid())
-	{
-		Request->CancelRequest();
-		Request->OnProcessRequestComplete().Unbind();
-		Request.Reset();
-	}
-
-	return true;
-}
-
-bool DownloadTask::GetShouldStop() const
-{
-	return bShouldStop;
+	return false;
 }
 
 FGuid DownloadTask::GetGuid() const
@@ -250,6 +227,16 @@ FTaskInformation DownloadTask::GetTaskInformation() const
 ETaskState DownloadTask::GetState() const
 {
 	return TaskState;
+}
+
+bool DownloadTask::GetNeedStop() const
+{
+	return bNeedStop;
+}
+
+void DownloadTask::SetNeedStop(bool bStop)
+{
+	bNeedStop = bStop;
 }
 
 bool DownloadTask::SaveTaskToJsonFile(const FString& InFileName) const
@@ -279,7 +266,10 @@ bool DownloadTask::SaveTaskToJsonFile(const FString& InFileName) const
 
 void DownloadTask::GetHead()
 {
-	Request = FHttpModule::Get().CreateRequest();
+	if (Request.IsValid() == false)
+	{
+		Request = FHttpModule::Get().CreateRequest();
+	}
 
 	EncodedUrl = GetSourceUrl();
 
@@ -338,10 +328,9 @@ void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePt
 		return;
 	}
 
-	SetTotalSize(InResponse->GetContentLength());
-	if (GetTotalSize() > 200 * 1024 * 1024)
+	if (RetutnCode == 200)
 	{
-		ChunkSize = 4 * 1024 * 1024;
+		SetTotalSize(InResponse->GetContentLength());
 	}
 
 	//the remote file has updated,we need to re-download
@@ -366,10 +355,7 @@ void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePt
 		return;
 	}
 
-	if (GetShouldStop() == false)
-	{
-		StartChunk();
-	}
+	StartChunk();
 }
 
 void DownloadTask::StartChunk()
@@ -385,6 +371,13 @@ void DownloadTask::StartChunk()
 	{
 		EndPosition = GetTotalSize() - 1;
 	}
+
+	if (StartPostion >= EndPosition)
+	{
+		UE_LOG(LogFileDownloader, Warning, TEXT("Error!!!"));
+		return;
+	}
+
 	FString RangeStr = FString("bytes=") + FString::FromInt(StartPostion) + FString(TEXT("-")) + FString::FromInt(EndPosition);
 	Request->SetHeader(FString("Range"), RangeStr);
 
@@ -399,10 +392,26 @@ FString DownloadTask::GetFullFileName() const
 
 void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bWasSuccessful)
 {
-	if (bShouldStop == true)
+	if (bNeedStop)
 	{
+		TaskState = ETaskState::WAIT;
+		ProcessTaskEvent(ETaskEvent::STOP, TaskInfo);
+
+		if (Request.IsValid())
+		{
+			Request->OnProcessRequestComplete().Unbind();
+			Request->CancelRequest();
+			Request.Reset();
+		}
+
+		if (TargetFile)
+		{
+			delete TargetFile;
+			TargetFile = nullptr;
+		}
 		return;
 	}
+
 	if (InResponse.IsValid() == false || bWasSuccessful == false)
 	{
 		UE_LOG(LogFileDownloader, Warning, TEXT("OnGetHeadCompleted Response error"));
@@ -497,11 +506,8 @@ void DownloadTask::OnTaskCompleted()
 
 void DownloadTask::OnWriteChunkEnd(int32 DataSize)
 {
-	if (bShouldStop == true)
+	if (GetState() != ETaskState::DOWNLOADING)
 	{
-		TaskState = ETaskState::WAIT;
-		ProcessTaskEvent(ETaskEvent::STOP, TaskInfo);
-		Request->CancelRequest();
 		return;
 	}
 	//update progress

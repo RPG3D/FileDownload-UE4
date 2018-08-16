@@ -68,13 +68,6 @@ DownloadTask::~DownloadTask()
 		delete TargetFile;
 		TargetFile = nullptr;
 	}
-
-	if (Request.IsValid())
-	{
-		Request->CancelRequest();
-		Request->OnProcessRequestComplete().Unbind();
-		Request.Reset();
-	}
 }
 
 void DownloadTask::SetFileName(const FString& InFileName)
@@ -397,13 +390,6 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 		TaskState = ETaskState::WAIT;
 		ProcessTaskEvent(ETaskEvent::STOP, TaskInfo);
 
-		if (Request.IsValid())
-		{
-			Request->OnProcessRequestComplete().Unbind();
-			Request->CancelRequest();
-			Request.Reset();
-		}
-
 		if (TargetFile)
 		{
 			delete TargetFile;
@@ -436,6 +422,8 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 
 	DataBuffer = InResponse->GetContent();
 
+
+#if 0
 	//Async write chunk buffer to file 
 	Async<void>(EAsyncExecution::ThreadPool, [this]()
 	{
@@ -445,7 +433,7 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 			bool bWriteRet = this->TargetFile->Write(DataBuffer.GetData(), DataBuffer.Num());
 			if (bWriteRet)
 			{
-				this->TargetFile->Flush();
+				//this->TargetFile->Flush();
 				//return to game thread
 				FFunctionGraphTask::CreateAndDispatchWhenReady([this]() {
 					this->OnWriteChunkEnd(this->DataBuffer.Num());
@@ -463,6 +451,30 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 			}
 		}
 	});
+
+#else
+
+	//Sync write chunk buffer to file 
+
+	if (this->TargetFile != nullptr)
+	{
+		this->TargetFile->Seek(this->GetCurrentSize());
+		bool bWriteRet = this->TargetFile->Write(DataBuffer.GetData(), DataBuffer.Num());
+		if (bWriteRet)
+		{
+			//this->TargetFile->Flush();
+			this->OnWriteChunkEnd(this->DataBuffer.Num());
+		}
+		else
+		{
+			UE_LOG(LogFileDownloader, Warning, TEXT("%s, %d, Async write file error !"), __FUNCTION__, __LINE__);
+			this->TaskState = ETaskState::ERROR;
+			this->ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, this->TaskInfo);
+		}
+	}
+
+#endif
+	
 }
 
 void DownloadTask::OnTaskCompleted()
@@ -472,12 +484,6 @@ void DownloadTask::OnTaskCompleted()
 	{
 		delete TargetFile;
 		TargetFile = nullptr;
-	}
-
-	if (Request.IsValid())
-	{
-		Request->CancelRequest();
-		Request.Reset();
 	}
 
 	//Change file name if target file does not exist.

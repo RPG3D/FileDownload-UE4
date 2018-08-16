@@ -10,7 +10,7 @@ public class FileDownloader : ModuleRules
 		
 		PublicIncludePaths.AddRange(
 			new string[] {
-				"FileDownloader/Public"
+				//"FileDownloader/Public"
 				// ... add public include paths required here ...
 			}
 			);

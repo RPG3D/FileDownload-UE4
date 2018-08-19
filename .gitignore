@@ -81,11 +81,3 @@ DerivedDataCache/*
 
 #don't ignore source directory
 !source/**
-
-#don't ignore lua script
-!Saved/Scripts/
-
-DownloadExample/Intermediate
-DownloadExample/Saved
-DownloadExample/Binaries
-DownloadExample/Plugins

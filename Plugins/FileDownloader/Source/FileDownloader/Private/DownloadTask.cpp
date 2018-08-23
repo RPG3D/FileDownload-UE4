@@ -433,7 +433,7 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 			bool bWriteRet = this->TargetFile->Write(DataBuffer.GetData(), DataBuffer.Num());
 			if (bWriteRet)
 			{
-				//this->TargetFile->Flush();
+				this->TargetFile->Flush();
 				//return to game thread
 				FFunctionGraphTask::CreateAndDispatchWhenReady([this]() {
 					this->OnWriteChunkEnd(this->DataBuffer.Num());
@@ -462,7 +462,7 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 		bool bWriteRet = this->TargetFile->Write(DataBuffer.GetData(), DataBuffer.Num());
 		if (bWriteRet)
 		{
-			//this->TargetFile->Flush();
+			this->TargetFile->Flush();
 			this->OnWriteChunkEnd(this->DataBuffer.Num());
 		}
 		else

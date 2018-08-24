@@ -76,7 +76,7 @@ public:
 	{
 		if (InEvent == ETaskEvent::START_DOWNLOAD)
 		{
-			UE_LOG(LogFileDownloader, Warning, TEXT("%s  %d  Please use FileDownloadManager instead DownloadTask to download file."));
+			UE_LOG(LogFileDownloader, Warning, TEXT("%s  %d  Please use FileDownloadManager instead DownloadTask to download file."), __FUNCTION__, __LINE__);
 		}
 		
 	};

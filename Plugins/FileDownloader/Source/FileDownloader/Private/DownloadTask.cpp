@@ -63,6 +63,16 @@ DownloadTask::DownloadTask(const FTaskInformation& InTaskInfo)
 
 DownloadTask::~DownloadTask()
 {
+	if (Request.IsValid())
+	{
+		if (Request->OnProcessRequestComplete().IsBound())
+		{
+			Request->OnProcessRequestComplete().Unbind();
+		}
+
+		Request->CancelRequest();
+	}
+
 	if (TargetFile != nullptr)
 	{
 		delete TargetFile;
@@ -367,7 +377,7 @@ void DownloadTask::StartChunk()
 
 	if (StartPostion >= EndPosition)
 	{
-		UE_LOG(LogFileDownloader, Warning, TEXT("Error!!!"));
+		UE_LOG(LogFileDownloader, Warning, TEXT("Error! StartPostion >= EndPosition"));
 		return;
 	}
 
@@ -409,7 +419,7 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 
 	if (RetCode >= 400 || RetCode < 200)
 	{
-		UE_LOG(LogFileDownloader, Warning, TEXT("%d, Return code error !"), InResponse->GetResponseCode());
+		UE_LOG(LogFileDownloader, Warning, TEXT("%s, Return code error: %d"), *GetSourceUrl(), InResponse->GetResponseCode());
 		if (TargetFile != nullptr)
 		{
 			delete TargetFile;
@@ -492,21 +502,24 @@ void DownloadTask::OnTaskCompleted()
 		//change temp file name to target file name.
 		if (PlatformFile->MoveFile(*GetFullFileName(), *FString(GetFullFileName() + TEMP_FILE_EXTERN)) == true)
 		{
+			UE_LOG(LogFileDownloader, Warning, TEXT("%s, completed !"), *GetFileName());
 			TaskState = ETaskState::COMPLETED;
 			ProcessTaskEvent(ETaskEvent::DOWNLOAD_COMPLETED, TaskInfo);
 		}
 		else
 		{
 			//error when changing file name.
-			UE_LOG(LogFileDownloader, Warning, TEXT("%s, %d, Change temp file name error !"), __FUNCTION__, __LINE__);
-			ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
+			UE_LOG(LogFileDownloader, Warning, TEXT("%s, Change temp file name error !"), *GetFileName());
 			TaskState = ETaskState::ERROR;
+			ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
 		}
 	}
 	else
 	{
+		UE_LOG(LogFileDownloader, Warning, TEXT("%s, file already exist !"), *GetFileName());
 		TaskState = ETaskState::COMPLETED;
 		ProcessTaskEvent(ETaskEvent::DOWNLOAD_COMPLETED, TaskInfo);
+
 	}
 }
 
@@ -522,7 +535,7 @@ void DownloadTask::OnWriteChunkEnd(int32 DataSize)
 	if (GetCurrentSize() < GetTotalSize())
 	{
 		ProcessTaskEvent(ETaskEvent::DOWNLOAD_UPDATE, TaskInfo);
-		//download next chunk when wrote ended
+		//download next chunk
 		StartChunk();
 	}
 	else

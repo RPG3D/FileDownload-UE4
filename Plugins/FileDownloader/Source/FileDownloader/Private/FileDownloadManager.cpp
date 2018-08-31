@@ -86,6 +86,13 @@ void UFileDownloadManager::StopTask(const FGuid& InGuid)
 	}
 }
 
+void UFileDownloadManager::Clear()
+{
+	StopAll();
+	TaskList.Reset();
+	ErrorCount = 0;
+}
+
 bool UFileDownloadManager::SaveTaskToJsonFile(const FGuid& InGuid, const FString& InFileName /*= TEXT("")*/)
 {
 	int32 ret = FindTaskByGuid(InGuid);
@@ -161,10 +168,21 @@ void UFileDownloadManager::OnTaskEvent(ETaskEvent InEvent, const FTaskInformatio
 			--CurrentDoingWorks;
 		}
 
+		if (InEvent == ETaskEvent::ERROR_OCCUR)
+		{
+			++ErrorCount;
+		}
+
 		int32 Idx = FindTaskByGuid(InInfo.GetGuid());
 		if (Idx > INDEX_NONE)
 		{
 			TaskList.RemoveAt(Idx);
+		}
+
+		if (TaskList.Num() < 1)
+		{
+			OnAllTaskCompleted.Broadcast(ErrorCount);
+			ErrorCount = 0;
 		}
 	}
 	return ;

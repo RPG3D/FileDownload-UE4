@@ -10,7 +10,8 @@
 
 class DownloadTask;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FDLManagerDelegate, ETaskEvent, InEvent, FTaskInformation, InInfo);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FDLManagerDelegate, ETaskEvent, InEvent, const FTaskInformation&, InInfo);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAllTaskCompleted, int32, ErrorCount);
 
 /**
  * FileDownloadManager, this class is the interface of the plugin, use this class download file as far as possible (both c++ & blueprint)
@@ -22,18 +23,35 @@ class FILEDOWNLOADER_API UFileDownloadManager : public UObject, public FTickable
 public:
 
 	UFileDownloadManager();
-
+	/*
+	 *start download action for all task by sequence
+	 **/
 	UFUNCTION(BlueprintCallable)
 		void StartAll();
 
+	/*
+	 *start a task, only change state, if current works up to MaxDoingWorks, the task is wait
+	 **/
 	UFUNCTION(BlueprintCallable)
 		void StartTask(const FGuid& InGuid);
 
+	/*
+	 *stop all task, release file handle and cancel HTTP
+	 **/
 	UFUNCTION(BlueprintCallable)
 		void StopAll();
 
+	/*
+	 *stop a task immediately
+	 **/
 	UFUNCTION(BlueprintCallable)
 		void StopTask(const FGuid& InGuid);
+
+	/*
+	 *stop and remove all tasks
+	 **/
+	UFUNCTION(BlueprintCallable)
+		void Clear();
 
 	/*save task information to a Json file, so you can load the task later.
 	 @Param InGuid can not be invalid, identify a task
@@ -54,20 +72,27 @@ public:
 	UFUNCTION(BlueprintCallable)
 		FGuid AddTaskByUrl(const FString& InUrl, const FString& InDirectory = TEXT(""), const FString& InFileName = TEXT(""), bool InOverride = false);
 
+	/*
+	 *get default directory
+	 **/
 	UFUNCTION(BlueprintCallable)
 		FString GetDownloadDirectory() const;
 
+	/************************************************************************/
+	/* Interface for TickableObject                                         */
+	/************************************************************************/
 	virtual void Tick(float DeltaTime) override;
-
 	virtual TStatId GetStatId() const override;
 	
 	//tick interval
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-		float TickInterval = 0.5f;
+		float TickInterval = 0.2f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		int32 MaxParallelTask = 5;
 	UPROPERTY(BlueprintAssignable)
 		FDLManagerDelegate OnDlManagerEvent;
+	UPROPERTY(BlueprintAssignable)
+		FOnAllTaskCompleted OnAllTaskCompleted;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		FString DefaultDirectory = TEXT("FileDownload");
@@ -85,4 +110,6 @@ protected:
 	int32 CurrentDoingWorks = 0;
 
 	bool bStopAll = false;
+
+	int32 ErrorCount = 0;
 };

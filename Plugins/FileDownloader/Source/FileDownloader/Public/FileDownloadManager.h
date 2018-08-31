@@ -47,6 +47,14 @@ public:
 	UFUNCTION(BlueprintCallable)
 		void StopTask(const FGuid& InGuid);
 
+
+	/*
+	 *get total progress of all tasks
+	 *@return tasks percent [0, 100]
+	 **/
+	UFUNCTION(BlueprintCallable)
+		int32 GetTotalPercent() const;
+
 	/*
 	 *stop and remove all tasks
 	 **/

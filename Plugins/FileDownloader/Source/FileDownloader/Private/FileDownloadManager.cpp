@@ -55,10 +55,7 @@ void UFileDownloadManager::StartTask(const FGuid& InGuid)
 	int32 ret = FindTaskByGuid(InGuid);
 	if (ret > INDEX_NONE)
 	{
-		if (CurrentDoingWorks < MaxParallelTask && TaskList[ret]->Start())
-		{
-			++CurrentDoingWorks;
-		}
+		TaskList[ret]->SetNeedStop(false);
 	}
 }
 
@@ -84,6 +81,25 @@ void UFileDownloadManager::StopTask(const FGuid& InGuid)
 			--CurrentDoingWorks;
 		}
 	}
+}
+
+int32 UFileDownloadManager::GetTotalPercent() const
+{
+	int32 CurrentSize = 0;
+	int32 TotalSize = 0;
+
+	for (int32 i = 0; i < TaskList.Num(); ++i)
+	{
+		CurrentSize += TaskList[i]->GetCurrentSize();
+		TotalSize += TaskList[i]->GetTotalSize();
+	}
+
+	if (TotalSize < 1)
+	{
+		return 0;
+	}
+
+	return (float)(CurrentSize) / TotalSize * 100.f;
 }
 
 void UFileDownloadManager::Clear()
@@ -173,13 +189,13 @@ void UFileDownloadManager::OnTaskEvent(ETaskEvent InEvent, const FTaskInformatio
 			++ErrorCount;
 		}
 
-		int32 Idx = FindTaskByGuid(InInfo.GetGuid());
+		/*int32 Idx = FindTaskByGuid(InInfo.GetGuid());
 		if (Idx > INDEX_NONE)
 		{
 			TaskList.RemoveAt(Idx);
-		}
+		}*/
 
-		if (TaskList.Num() < 1)
+		if (CurrentDoingWorks < 1)
 		{
 			OnAllTaskCompleted.Broadcast(ErrorCount);
 			ErrorCount = 0;

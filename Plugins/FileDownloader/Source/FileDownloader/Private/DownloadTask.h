@@ -19,7 +19,7 @@ class DownloadTask
 public:
 	DownloadTask();
 
-	DownloadTask(const FString& InUrl, const FString& InDirectory, const FString& InFileName);
+	DownloadTask(const FString& InUrl, const FString& InDirectory, const FString& InFileName, bool InOverrdie = false);
 
 	DownloadTask(const FTaskInformation& InTaskInfo);
 
@@ -112,4 +112,6 @@ protected:
 	TSharedPtr<IHttpRequest> Request = nullptr;
 
 	bool bNeedStop = false;
+
+	bool bOverride = false;
 };

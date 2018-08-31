@@ -9,8 +9,8 @@
 #include "IHttpResponse.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
 
-FString TEMP_FILE_EXTERN = TEXT(".dlFile");
-FString TASK_JSON = TEXT(".task");
+const FString TEMP_FILE_EXTERN = TEXT(".dlFile");
+const FString TASK_JSON = TEXT(".task");
 
 IPlatformFile* PlatformFile = nullptr;
 
@@ -27,9 +27,10 @@ DownloadTask::DownloadTask()
 	}
 }
 
-DownloadTask::DownloadTask(const FString& InUrl, const FString& InDirectory, const FString& InFileName)
+DownloadTask::DownloadTask(const FString& InUrl, const FString& InDirectory, const FString& InFileName, bool InOverride)
 	: DownloadTask()
 {
+	bOverride = InOverride;
 	const FString& Dir = InDirectory;
 
 	if (PlatformFile->DirectoryExists(*Dir) == false)
@@ -336,26 +337,25 @@ void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePt
 		SetTotalSize(InResponse->GetContentLength());
 	}
 
-	//the remote file has updated,we need to re-download
-	if (InResponse->GetHeader("ETag") != TaskInfo.ETag)
-	{
-		SetETag(InResponse->GetHeader(FString("ETag")));
-		SetCurrentSize(0);
-	}
-
-	//the local file is removed,we need to re-download
-	if (IsFileExist(GetFullFileName() + TEMP_FILE_EXTERN) == false)
-	{
-		SetCurrentSize(0);
-	}
-
 	TargetFile = PlatformFile->OpenWrite(*FString(GetFullFileName() + TEMP_FILE_EXTERN), true);
+
 	if (TargetFile == nullptr)
 	{
 		UE_LOG(LogFileDownloader, Warning, TEXT("%s, %d, create temp file error !"));
 		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
 		TaskState = ETaskState::ERROR;
 		return;
+	}
+	else
+	{
+		SetCurrentSize(TargetFile->Size());
+	}
+
+	//the remote file has updated,we need to re-download
+	if (InResponse->GetHeader("ETag") != TaskInfo.ETag)
+	{
+		SetETag(InResponse->GetHeader(FString("ETag")));
+		SetCurrentSize(0);
 	}
 
 	StartChunk();
@@ -477,7 +477,7 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 		}
 		else
 		{
-			UE_LOG(LogFileDownloader, Warning, TEXT("%s, %d, Async write file error !"), __FUNCTION__, __LINE__);
+			UE_LOG(LogFileDownloader, Warning, TEXT("%s, %d, Sync write file error !"), __FUNCTION__, __LINE__);
 			this->TaskState = ETaskState::ERROR;
 			this->ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, this->TaskInfo);
 		}
@@ -496,8 +496,18 @@ void DownloadTask::OnTaskCompleted()
 		TargetFile = nullptr;
 	}
 
+	const bool bExist = IsFileExist();
+
+	if (bOverride && bExist)
+	{
+		if (PlatformFile->DeleteFile(*GetFullFileName()) == false)
+		{
+			UE_LOG(LogFileDownloader, Warning, TEXT("%s, can not override exist file !"), *GetFullFileName());
+		}
+	}
+
 	//Change file name if target file does not exist.
-	if (IsFileExist() == false)
+	if (bExist == false)
 	{
 		//change temp file name to target file name.
 		if (PlatformFile->MoveFile(*GetFullFileName(), *FString(GetFullFileName() + TEMP_FILE_EXTERN)) == true)

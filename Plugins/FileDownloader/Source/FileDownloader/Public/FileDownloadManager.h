@@ -52,7 +52,7 @@ public:
    	 @ param : InFileName ignore this param(Default file name will be used, cutting & copy name from InUrl)
 	 */
 	UFUNCTION(BlueprintCallable)
-		FGuid AddTaskByUrl(const FString& InUrl, const FString& InDirectory = TEXT(""), const FString& InFileName = TEXT(""));
+		FGuid AddTaskByUrl(const FString& InUrl, const FString& InDirectory = TEXT(""), const FString& InFileName = TEXT(""), bool InOverride = false);
 
 	UFUNCTION(BlueprintCallable)
 		FString GetDownloadDirectory() const;

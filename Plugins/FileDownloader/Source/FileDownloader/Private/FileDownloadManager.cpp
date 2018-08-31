@@ -108,7 +108,7 @@ TArray<FTaskInformation> UFileDownloadManager::GetAllTaskInformation() const
 	return Ret;
 }
 
-FGuid UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& InDirectory, const FString& InFileName)
+FGuid UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& InDirectory, const FString& InFileName, bool InOverride)
 {
 	FString TmpDir = InDirectory;
 	if (TmpDir.IsEmpty())
@@ -121,7 +121,7 @@ FGuid UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& In
 
 		TmpDir = FPaths::ProjectDir() + UrlDirectory;
 	}
-	TSharedPtr<DownloadTask>Task = MakeShareable(new DownloadTask(InUrl, TmpDir, InFileName));
+	TSharedPtr<DownloadTask>Task = MakeShareable(new DownloadTask(InUrl, TmpDir, InFileName, InOverride));
 
 	if (Task.IsValid() == false)
 	{

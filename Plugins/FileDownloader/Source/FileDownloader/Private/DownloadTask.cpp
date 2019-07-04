@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "DownloadTask.h"
 #include "Paths.h"
@@ -181,10 +181,19 @@ bool DownloadTask::Start()
 	}
 
 	//if target file already exist, make this task complete. 
-	if (IsFileExist() == true)
+	bool bExist = IsFileExist();
+	if (bExist && bOverride == false)
 	{
 		OnTaskCompleted();
 		return false;
+	}
+
+	if (bOverride && bExist)
+	{
+		if (PlatformFile->DeleteFile(*GetFullFileName()) == false)
+		{
+			UE_LOG(LogFileDownloader, Warning, TEXT("%s, can not override exist file !"), *GetFullFileName());
+		}
 	}
 
 	
@@ -497,14 +506,6 @@ void DownloadTask::OnTaskCompleted()
 	}
 
 	const bool bExist = IsFileExist();
-
-	if (bOverride && bExist)
-	{
-		if (PlatformFile->DeleteFile(*GetFullFileName()) == false)
-		{
-			UE_LOG(LogFileDownloader, Warning, TEXT("%s, can not override exist file !"), *GetFullFileName());
-		}
-	}
 
 	//Change file name if target file does not exist.
 	if (bExist == false)

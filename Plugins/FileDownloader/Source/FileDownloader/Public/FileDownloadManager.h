@@ -22,7 +22,7 @@ class FILEDOWNLOADER_API UFileDownloadManager : public UObject, public FTickable
 	GENERATED_BODY()
 public:
 
-	UFileDownloadManager();
+	virtual void BeginDestroy() override;
 	/*
 	 *start download action for all task by sequence
 	 **/
@@ -55,6 +55,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 		int32 GetTotalPercent() const;
 
+	UFUNCTION(BlueprintCallable)
+		void GetByteSize(int32& OutCurrentSize, int32& OutTotalSize) const;
+
 	/*
 	 *stop and remove all tasks
 	 **/
@@ -79,6 +82,9 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable)
 		FGuid AddTaskByUrl(const FString& InUrl, const FString& InDirectory = TEXT(""), const FString& InFileName = TEXT(""), bool InOverride = false);
+
+	UFUNCTION(BlueprintCallable)
+		bool SetPreviewTotalSize(const FGuid& InGID, int32 InTotalSize);
 
 	/*
 	 *get default directory

@@ -1,10 +1,11 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "DownloadTask.h"
 #include "Paths.h"
 #include "FileHelper.h"
 #include "PlatformFilemanager.h"
 #include "HttpModule.h"
+#include "HttpManager.h"
 #include "IHttpRequest.h"
 #include "IHttpResponse.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
@@ -64,21 +65,7 @@ DownloadTask::DownloadTask(const FTaskInformation& InTaskInfo)
 
 DownloadTask::~DownloadTask()
 {
-	if (Request.IsValid())
-	{
-		if (Request->OnProcessRequestComplete().IsBound())
-		{
-			Request->OnProcessRequestComplete().Unbind();
-		}
-
-		Request->CancelRequest();
-	}
-
-	if (TargetFile != nullptr)
-	{
-		delete TargetFile;
-		TargetFile = nullptr;
-	}
+	Stop();
 }
 
 void DownloadTask::SetFileName(const FString& InFileName)
@@ -180,23 +167,6 @@ bool DownloadTask::Start()
 		return false;
 	}
 
-	//if target file already exist, make this task complete. 
-	bool bExist = IsFileExist();
-	if (bExist && bOverride == false)
-	{
-		OnTaskCompleted();
-		return false;
-	}
-
-	if (bOverride && bExist)
-	{
-		if (PlatformFile->DeleteFile(*GetFullFileName()) == false)
-		{
-			UE_LOG(LogFileDownloader, Warning, TEXT("%s, can not override exist file !"), *GetFullFileName());
-		}
-	}
-
-	
 	//ignore if already being downloading.
 	if (IsDownloading())
 	{
@@ -213,9 +183,26 @@ bool DownloadTask::Start()
 
 bool DownloadTask::Stop()
 {
+	if (Request.IsValid())
+	{
+		if (Request->OnProcessRequestComplete().IsBound())
+		{
+			Request->OnProcessRequestComplete().Unbind();
+		}
+
+		Request->CancelRequest();
+		FHttpModule::Get().GetHttpManager().RemoveRequest(Request.ToSharedRef());
+	}
+
+	if (TargetFile)
+	{
+		delete TargetFile;
+		TargetFile = nullptr;
+	}
+
 	if (GetState() == ETaskState::DOWNLOADING)
 	{
-		SetNeedStop(true);
+		SetNeedStop(true);	
 		return true;
 	}
 
@@ -262,27 +249,23 @@ bool DownloadTask::SaveTaskToJsonFile(const FString& InFileName) const
 	
 	FString OutStr;
 	TaskInfo.SerializeToJsonString(OutStr);
-	IFileHandle* JsonFile = PlatformFile->OpenWrite(*InFileName);
-	if (JsonFile)
-	{
-		JsonFile->Write((uint8*)OutStr.GetCharArray().GetData(), OutStr.GetCharArray().Num());
-		JsonFile->Flush();
-		delete JsonFile;
 
-		return true;
-	}
-	else
-	{
-		return false;
-	}
+	return FFileHelper::SaveStringToFile(OutStr, *TmpName);
+
 }
 
 void DownloadTask::GetHead()
 {
+#if PLATFORM_IOS
+	Request = FHttpModule::Get().CreateRequest();
+#else
 	if (Request.IsValid() == false)
 	{
 		Request = FHttpModule::Get().CreateRequest();
+		FHttpModule::Get().GetHttpManager().AddRequest(Request.ToSharedRef());
 	}
+#endif
+
 
 	EncodedUrl = GetSourceUrl();
 
@@ -360,19 +343,59 @@ void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePt
 		SetCurrentSize(TargetFile->Size());
 	}
 
-	//the remote file has updated,we need to re-download
-	if (InResponse->GetHeader("ETag") != TaskInfo.ETag)
+	FString TempJsonStr;
+	FTaskInformation ExistTaskInfo;
+	if (FFileHelper::LoadFileToString(TempJsonStr, *FString(GetFullFileName() + TASK_JSON)))
 	{
-		SetETag(InResponse->GetHeader(FString("ETag")));
+		ExistTaskInfo.DeserializeFromJsonString(TempJsonStr);
+	}
+
+	//the remote file has updated,we need to re-download
+	FString NewETag = InResponse->GetHeader("ETag");
+	SetETag(NewETag);
+	if (NewETag.IsEmpty() || NewETag != ExistTaskInfo.ETag)
+	{
 		SetCurrentSize(0);
 	}
 
+	//if target file already exist, make this task complete. 
+	bool bExist = IsFileExist();
+	if (bExist && bOverride == false && !NewETag.IsEmpty() && NewETag == ExistTaskInfo.ETag)
+	{
+		SetCurrentSize(GetTotalSize());
+		OnTaskCompleted();
+		return;
+	}
+
+	if (bOverride && bExist)
+	{
+		if (PlatformFile->DeleteFile(*GetFullFileName()) == false)
+		{
+			UE_LOG(LogFileDownloader, Warning, TEXT("%s, can not override exist file !"), *GetFullFileName());
+			return;
+		}
+	}
+
+	//save task info to disk
+	SaveTaskToJsonFile(FString(""));
+
 	StartChunk();
+    
 }
 
 void DownloadTask::StartChunk()
 {
 	//start download a chunk
+#if PLATFORM_IOS
+	Request = FHttpModule::Get().CreateRequest();
+#else
+	if (Request.IsValid() == false)
+	{
+		Request = FHttpModule::Get().CreateRequest();
+		FHttpModule::Get().GetHttpManager().AddRequest(Request.ToSharedRef());
+	}
+#endif
+    
 	Request->SetVerb("GET");
 	Request->SetURL(EncodedUrl);
 
@@ -507,11 +530,13 @@ void DownloadTask::OnTaskCompleted()
 
 	const bool bExist = IsFileExist();
 
+	FString TmpFileName = GetFullFileName() + TEMP_FILE_EXTERN;
+
 	//Change file name if target file does not exist.
 	if (bExist == false)
 	{
 		//change temp file name to target file name.
-		if (PlatformFile->MoveFile(*GetFullFileName(), *FString(GetFullFileName() + TEMP_FILE_EXTERN)) == true)
+		if (PlatformFile->MoveFile(*GetFullFileName(), *TmpFileName) == true)
 		{
 			UE_LOG(LogFileDownloader, Warning, TEXT("%s, completed !"), *GetFileName());
 			TaskState = ETaskState::COMPLETED;
@@ -527,10 +552,13 @@ void DownloadTask::OnTaskCompleted()
 	}
 	else
 	{
-		UE_LOG(LogFileDownloader, Warning, TEXT("%s, file already exist !"), *GetFileName());
+		if (PlatformFile->FileSize(*TmpFileName) < 2)
+		{
+			PlatformFile->DeleteFile(*TmpFileName);
+		}
+
 		TaskState = ETaskState::COMPLETED;
 		ProcessTaskEvent(ETaskEvent::DOWNLOAD_COMPLETED, TaskInfo);
-
 	}
 }
 

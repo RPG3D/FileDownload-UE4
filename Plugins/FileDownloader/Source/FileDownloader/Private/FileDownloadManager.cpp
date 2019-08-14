@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "FileDownloadManager.h"
 #include "DownloadTask.h"
@@ -35,9 +35,11 @@ TStatId UFileDownloadManager::GetStatId() const
 	return TStatId();
 }
 
-UFileDownloadManager::UFileDownloadManager()
-{
 
+void UFileDownloadManager::BeginDestroy()
+{
+	StopAll();
+	Super::BeginDestroy();
 }
 
 void UFileDownloadManager::StartAll()
@@ -102,6 +104,19 @@ int32 UFileDownloadManager::GetTotalPercent() const
 	return (float)(CurrentSize) / TotalSize * 100.f;
 }
 
+
+void UFileDownloadManager::GetByteSize(int32& OutCurrentSize, int32& OutTotalSize) const
+{
+	OutCurrentSize = 0;
+	OutTotalSize = 0;
+
+	for (int32 i = 0; i < TaskList.Num(); ++i)
+	{
+		OutCurrentSize += TaskList[i]->GetCurrentSize();
+		OutTotalSize += TaskList[i]->GetTotalSize();
+	}
+}
+
 void UFileDownloadManager::Clear()
 {
 	StopAll();
@@ -157,7 +172,7 @@ FGuid UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& In
 	{
 		if (TaskList[i]->GetSourceUrl() == Task->GetSourceUrl())
 		{
-			//ÈÎÎñ´æÔÚÓÚÈÎÎñÁÐ±í
+			//ä»»åŠ¡å­˜åœ¨äºŽä»»åŠ¡åˆ—è¡¨
 			return TaskList[i]->GetGuid();
 		}
 	}
@@ -172,6 +187,18 @@ FGuid UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& In
 
 	TaskList.Add(Task);
 	return Task->GetGuid();
+}
+
+
+bool UFileDownloadManager::SetPreviewTotalSize(const FGuid& InGID, int32 InTotalSize)
+{
+	int32 TempIndex = FindTaskByGuid(InGID);
+	if (TempIndex > INDEX_NONE && TaskList[TempIndex]->GetTotalSize() < 1)
+	{
+		TaskList[TempIndex]->SetTotalSize(InTotalSize);
+	}
+
+	return TempIndex > INDEX_NONE;
 }
 
 void UFileDownloadManager::OnTaskEvent(ETaskEvent InEvent, const FTaskInformation& InInfo)

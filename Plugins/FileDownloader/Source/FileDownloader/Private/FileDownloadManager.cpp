@@ -58,6 +58,7 @@ void UFileDownloadManager::StartTask(const FGuid& InGuid)
 	if (ret > INDEX_NONE)
 	{
 		TaskList[ret]->SetNeedStop(false);
+		bStopAll = false;
 	}
 }
 

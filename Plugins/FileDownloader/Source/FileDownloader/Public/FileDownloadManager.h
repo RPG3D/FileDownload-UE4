@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -10,7 +10,7 @@
 
 class DownloadTask;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FDLManagerDelegate, ETaskEvent, InEvent, const FTaskInformation&, InInfo);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FDLManagerDelegate, ETaskEvent, InEvent, const FTaskInformation&, InInfo, int32, InHttpCode);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAllTaskCompleted, int32, ErrorCount);
 
 /**
@@ -56,7 +56,7 @@ public:
 		int32 GetTotalPercent() const;
 
 	UFUNCTION(BlueprintCallable)
-		void GetByteSize(int32& OutCurrentSize, int32& OutTotalSize) const;
+		void GetByteSize(int64& OutCurrentSize, int64& OutTotalSize) const;
 
 	/*
 	 *stop and remove all tasks
@@ -81,16 +81,13 @@ public:
    	 @ param : InFileName ignore this param(Default file name will be used, cutting & copy name from InUrl)
 	 */
 	UFUNCTION(BlueprintCallable)
-		FGuid AddTaskByUrl(const FString& InUrl, const FString& InDirectory = TEXT(""), const FString& InFileName = TEXT(""), bool InOverride = false);
+		FGuid AddTaskByUrl(const FString& InUrl, const FString& InDirectory = TEXT(""), const FString& InFileName = TEXT(""));
 
 	UFUNCTION(BlueprintCallable)
-		bool SetPreviewTotalSize(const FGuid& InGID, int32 InTotalSize);
+		bool SetTotalSizeByIndex(int32 InIndex, int32 InTotalSize);
 
-	/*
-	 *get default directory
-	 **/
 	UFUNCTION(BlueprintCallable)
-		FString GetDownloadDirectory() const;
+		bool SetTotalSizeByGuid(FGuid InGid, int32 InTotalSize);
 
 	/************************************************************************/
 	/* Interface for TickableObject                                         */
@@ -108,12 +105,9 @@ public:
 	UPROPERTY(BlueprintAssignable)
 		FOnAllTaskCompleted OnAllTaskCompleted;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-		FString DefaultDirectory = TEXT("FileDownload");
-
 protected:
 
-	void OnTaskEvent(ETaskEvent InEvent, const FTaskInformation& InInfo);
+	void OnTaskEvent(ETaskEvent InEvent, const FTaskInformation& InInfo, int32 InHttpCode);
 
 	int32 FindTaskToDo() const;
 

@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -19,7 +19,7 @@ class DownloadTask
 public:
 	DownloadTask();
 
-	DownloadTask(const FString& InUrl, const FString& InDirectory, const FString& InFileName, bool InOverrdie = false);
+	DownloadTask(const FString& InUrl, const FString& InDirectory, const FString& InFileName);
 
 	DownloadTask(const FTaskInformation& InTaskInfo);
 
@@ -51,8 +51,6 @@ public:
 
 	virtual const FString& GetETag() const;
 
-	virtual bool IsFileExist(const FString& InFullFileName = FString("")) const;
-
 	virtual bool Start();
 
 	virtual bool Stop();
@@ -72,7 +70,7 @@ public:
 	bool SaveTaskToJsonFile(const FString& InFileName) const;
 
 	//callback for notifying download events
-	TFunction<void(ETaskEvent InEvent, const FTaskInformation& InInfo)> ProcessTaskEvent = [this](ETaskEvent InEvent, const FTaskInformation& InInfo) 
+	TFunction<void(ETaskEvent InEvent, const FTaskInformation& InInfo, int32 InHttpCode)> ProcessTaskEvent = [this](ETaskEvent InEvent, const FTaskInformation& InInfo, int32 InHttpCode)
 	{
 		if (InEvent == ETaskEvent::START_DOWNLOAD)
 		{
@@ -82,6 +80,9 @@ public:
 	};
 
 protected:
+
+	DownloadTask(const DownloadTask& rhs) = delete;
+	DownloadTask& operator=(const DownloadTask& rhs) = delete;
 
 	virtual void GetHead();
 
@@ -113,5 +114,6 @@ protected:
 
 	bool bNeedStop = false;
 
-	bool bOverride = false;
+	int32 CurrentTryCount = 0;
+	int32 MaxTryCount = 3;
 };

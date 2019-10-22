@@ -28,10 +28,9 @@ DownloadTask::DownloadTask()
 	}
 }
 
-DownloadTask::DownloadTask(const FString& InUrl, const FString& InDirectory, const FString& InFileName, bool InOverride)
+DownloadTask::DownloadTask(const FString& InUrl, const FString& InDirectory, const FString& InFileName)
 	: DownloadTask()
 {
-	bOverride = InOverride;
 	const FString& Dir = InDirectory;
 
 	if (PlatformFile->DirectoryExists(*Dir) == false)
@@ -143,13 +142,6 @@ const FString& DownloadTask::GetETag() const
 	return TaskInfo.ETag;
 }
 
-bool DownloadTask::IsFileExist(const FString& InFullFileName/*=FString("")*/) const
-{
-	FString FullFileName = InFullFileName.IsEmpty() ? GetFullFileName() : InFullFileName;
-
-	return PlatformFile->FileExists(*FullFileName);
-}
-
 bool DownloadTask::Start()
 {
 	SetNeedStop(false);
@@ -163,7 +155,7 @@ bool DownloadTask::Start()
 	if (GetSourceUrl().IsEmpty() || GetFileName().IsEmpty())
 	{
 		TaskState = ETaskState::ERROR;
-		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
+		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo, -1);
 		return false;
 	}
 
@@ -295,7 +287,7 @@ void DownloadTask::GetHead()
 	Request->ProcessRequest();
 
 	TaskState = ETaskState::DOWNLOADING;
-	ProcessTaskEvent(ETaskEvent::START_DOWNLOAD, TaskInfo);
+	ProcessTaskEvent(ETaskEvent::START_DOWNLOAD, TaskInfo, -1);
 }
 
 void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bWasSuccessful)
@@ -305,7 +297,7 @@ void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePt
 	{
 		UE_LOG(LogFileDownloader, Warning, TEXT("OnGetHeadCompleted Response error"));
 		TaskState = ETaskState::ERROR;
-		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
+		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo, InResponse.IsValid() ? InResponse->GetResponseCode() : 0);
 		return;
 	}
 	int32 RetutnCode = InResponse->GetResponseCode();
@@ -320,7 +312,7 @@ void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePt
 		}
 
 		TaskState = ETaskState::ERROR;
-		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
+		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo, RetutnCode);
 		return;
 	}
 
@@ -334,7 +326,7 @@ void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePt
 	if (TargetFile == nullptr)
 	{
 		UE_LOG(LogFileDownloader, Warning, TEXT("%s, %d, create temp file error !"));
-		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
+		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo, RetutnCode);
 		TaskState = ETaskState::ERROR;
 		return;
 	}
@@ -359,21 +351,17 @@ void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePt
 	}
 
 	//if target file already exist, make this task complete. 
-	bool bExist = IsFileExist();
-	if (bExist && bOverride == false && !NewETag.IsEmpty() && NewETag == ExistTaskInfo.ETag)
+	bool bExist = PlatformFile->FileExists(*GetFullFileName());
+	if (bExist && !NewETag.IsEmpty() && NewETag == ExistTaskInfo.ETag)
 	{
+		delete TargetFile;
+		TargetFile = nullptr;
+		PlatformFile->DeleteFile(*FString(GetFullFileName() + TEMP_FILE_EXTERN));
+
 		SetCurrentSize(GetTotalSize());
+
 		OnTaskCompleted();
 		return;
-	}
-
-	if (bOverride && bExist)
-	{
-		if (PlatformFile->DeleteFile(*GetFullFileName()) == false)
-		{
-			UE_LOG(LogFileDownloader, Warning, TEXT("%s, can not override exist file !"), *GetFullFileName());
-			return;
-		}
 	}
 
 	//save task info to disk
@@ -430,7 +418,7 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 	if (bNeedStop)
 	{
 		TaskState = ETaskState::WAIT;
-		ProcessTaskEvent(ETaskEvent::STOP, TaskInfo);
+		ProcessTaskEvent(ETaskEvent::STOP, TaskInfo, InResponse->GetResponseCode());
 
 		if (TargetFile)
 		{
@@ -444,7 +432,7 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 	{
 		UE_LOG(LogFileDownloader, Warning, TEXT("OnGetHeadCompleted Response error"));
 		TaskState = ETaskState::ERROR;
-		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
+		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo, InResponse.IsValid() ? InResponse->GetResponseCode() : 0);
 		return;
 	}
 	int32 RetCode = InResponse->GetResponseCode();
@@ -458,7 +446,7 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 			TargetFile = nullptr;
 		}
 		TaskState = ETaskState::ERROR;
-		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
+		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo, RetCode);
 		return;
 	}
 
@@ -487,7 +475,7 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 				FFunctionGraphTask::CreateAndDispatchWhenReady([this]() {
 					UE_LOG(LogFileDownloader, Warning, TEXT("%s, %d, Async write file error !"), __FUNCTION__, __LINE__);
 					this->TaskState = ETaskState::ERROR;
-					this->ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, this->TaskInfo);
+					this->ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, this->TaskInfo, -1);
 				}, TStatId(), nullptr, ENamedThreads::GameThread);
 
 			}
@@ -511,7 +499,7 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 		{
 			UE_LOG(LogFileDownloader, Warning, TEXT("%s, %d, Sync write file error !"), __FUNCTION__, __LINE__);
 			this->TaskState = ETaskState::ERROR;
-			this->ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, this->TaskInfo);
+			this->ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, this->TaskInfo, -1);
 		}
 	}
 
@@ -528,38 +516,59 @@ void DownloadTask::OnTaskCompleted()
 		TargetFile = nullptr;
 	}
 
-	const bool bExist = IsFileExist();
-
 	FString TmpFileName = GetFullFileName() + TEMP_FILE_EXTERN;
+	bool bOldExist = PlatformFile->FileExists(*GetFullFileName());
+	bool bNewExist = PlatformFile->FileExists(*TmpFileName);
 
-	//Change file name if target file does not exist.
-	if (bExist == false)
+	//error!
+	if (!bOldExist && !bNewExist)
+	{
+		UE_LOG(LogFileDownloader, Warning, TEXT("%s, file not eixst !"), *GetFileName());
+		TaskState = ETaskState::ERROR;
+		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo, -1);
+		return;
+	}
+
+	if (!bOldExist)
 	{
 		//change temp file name to target file name.
-		if (PlatformFile->MoveFile(*GetFullFileName(), *TmpFileName) == true)
+		if (PlatformFile->MoveFile(*GetFullFileName(), *TmpFileName))
 		{
 			UE_LOG(LogFileDownloader, Warning, TEXT("%s, completed !"), *GetFileName());
 			TaskState = ETaskState::COMPLETED;
-			ProcessTaskEvent(ETaskEvent::DOWNLOAD_COMPLETED, TaskInfo);
+			ProcessTaskEvent(ETaskEvent::DOWNLOAD_COMPLETED, TaskInfo, -1);
+			return;
 		}
 		else
 		{
 			//error when changing file name.
 			UE_LOG(LogFileDownloader, Warning, TEXT("%s, Change temp file name error !"), *GetFileName());
 			TaskState = ETaskState::ERROR;
-			ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo);
+			ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo, -1);
+			return;
 		}
 	}
-	else
+	else if (bNewExist)
 	{
-		if (PlatformFile->FileSize(*TmpFileName) < 2)
+		if (PlatformFile->DeleteFile(*GetFullFileName()) && PlatformFile->MoveFile(*GetFullFileName(), *TmpFileName))
 		{
-			PlatformFile->DeleteFile(*TmpFileName);
+			TaskState = ETaskState::COMPLETED;
+			ProcessTaskEvent(ETaskEvent::DOWNLOAD_COMPLETED, TaskInfo, -1);
+			return;
 		}
-
-		TaskState = ETaskState::COMPLETED;
-		ProcessTaskEvent(ETaskEvent::DOWNLOAD_COMPLETED, TaskInfo);
+		else
+		{
+			//error when changing file name.
+			UE_LOG(LogFileDownloader, Warning, TEXT("%s, Canot delete old file or rename temp file!"), *GetFileName());
+			TaskState = ETaskState::ERROR;
+			ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo, -1);
+			return;
+		}
 	}
+
+	TaskState = ETaskState::COMPLETED;
+	ProcessTaskEvent(ETaskEvent::DOWNLOAD_COMPLETED, TaskInfo, -1);
+	return;
 }
 
 void DownloadTask::OnWriteChunkEnd(int32 DataSize)
@@ -573,7 +582,7 @@ void DownloadTask::OnWriteChunkEnd(int32 DataSize)
 
 	if (GetCurrentSize() < GetTotalSize())
 	{
-		ProcessTaskEvent(ETaskEvent::DOWNLOAD_UPDATE, TaskInfo);
+		ProcessTaskEvent(ETaskEvent::DOWNLOAD_UPDATE, TaskInfo, -1);
 		//download next chunk
 		StartChunk();
 	}

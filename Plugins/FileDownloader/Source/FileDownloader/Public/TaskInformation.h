@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -27,7 +27,7 @@ public:
 
 	bool operator==(const FTaskInformation& InTaskInfo)
 	{
-		return GetGuid() == InTaskInfo.GetGuid();
+		return GetGuid() == InTaskInfo.GetGuid() || SourceUrl == InTaskInfo.SourceUrl;
 	}
 
 	bool operator==(const FGuid InGuid)

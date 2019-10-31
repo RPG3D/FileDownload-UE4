@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "TaskInformation.h"
 #include "Tickable.h"
-#include "FileDownloadManager.Generated.h"
+#include "FileDownloadManager.generated.h"
 
 
 class DownloadTask;

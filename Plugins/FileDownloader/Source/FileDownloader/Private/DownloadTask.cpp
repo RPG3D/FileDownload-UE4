@@ -295,9 +295,21 @@ void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePt
 	//we should check return code first to ensure the URL & network is OK.
 	if (InResponse.IsValid() == false || bWasSuccessful == false)
 	{
-		UE_LOG(LogFileDownloader, Warning, TEXT("OnGetHeadCompleted Response error"));
-		TaskState = ETaskState::ERROR;
-		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo, InResponse.IsValid() ? InResponse->GetResponseCode() : 0);
+		UE_LOG(LogFileDownloader, Warning, TEXT("%s:%d"), UTF8_TO_TCHAR(__FUNCTION__), __LINE__);
+
+		if (CurrentTryCount >= MaxTryCount)
+		{
+			TaskState = ETaskState::ERROR;
+			ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo, InResponse.IsValid() ? InResponse->GetResponseCode() : 0);
+		}
+		else
+		{
+			TaskState = ETaskState::WAIT;
+			++CurrentTryCount;
+
+			Start();
+		}
+
 		return;
 	}
 	int32 RetutnCode = InResponse->GetResponseCode();
@@ -321,6 +333,11 @@ void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePt
 		SetTotalSize(InResponse->GetContentLength());
 	}
 
+	if (TargetFile != nullptr)
+	{
+		delete TargetFile;
+		TargetFile = nullptr;
+	}
 	TargetFile = PlatformFile->OpenWrite(*FString(GetFullFileName() + TEMP_FILE_EXTERN), true);
 
 	if (TargetFile == nullptr)
@@ -430,9 +447,21 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 
 	if (InResponse.IsValid() == false || bWasSuccessful == false)
 	{
-		UE_LOG(LogFileDownloader, Warning, TEXT("OnGetHeadCompleted Response error"));
-		TaskState = ETaskState::ERROR;
-		ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo, InResponse.IsValid() ? InResponse->GetResponseCode() : 0);
+		UE_LOG(LogFileDownloader, Warning, TEXT("%s:%d"), UTF8_TO_TCHAR(__FUNCTION__), __LINE__);
+
+		if (CurrentTryCount >= MaxTryCount)
+		{
+			TaskState = ETaskState::ERROR;
+			ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, TaskInfo, InResponse.IsValid() ? InResponse->GetResponseCode() : 0);
+		}
+		else
+		{
+			TaskState = ETaskState::WAIT;
+			++CurrentTryCount;
+
+			Start();
+		}
+
 		return;
 	}
 	int32 RetCode = InResponse->GetResponseCode();

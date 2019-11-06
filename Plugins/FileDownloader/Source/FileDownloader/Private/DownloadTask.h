@@ -115,5 +115,5 @@ protected:
 	bool bNeedStop = false;
 
 	int32 CurrentTryCount = 0;
-	int32 MaxTryCount = 3;
+	int32 MaxTryCount = 10;
 };

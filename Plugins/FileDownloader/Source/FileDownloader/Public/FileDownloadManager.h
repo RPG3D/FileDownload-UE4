@@ -97,7 +97,7 @@ public:
 	
 	//tick interval
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-		float TickInterval = 0.2f;
+		float TickInterval = 0.1f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		int32 MaxParallelTask = 5;
 	UPROPERTY(BlueprintAssignable)

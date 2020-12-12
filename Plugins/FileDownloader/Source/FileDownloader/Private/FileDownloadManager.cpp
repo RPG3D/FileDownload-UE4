@@ -2,7 +2,7 @@
 
 #include "FileDownloadManager.h"
 #include "DownloadTask.h"
-#include "Paths.h"
+#include "Misc/Paths.h"
 
 void UFileDownloadManager::Tick(float DeltaTime)
 {

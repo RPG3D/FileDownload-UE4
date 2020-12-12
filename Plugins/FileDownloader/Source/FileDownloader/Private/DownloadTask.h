@@ -6,8 +6,8 @@
 #include "TaskInformation.h"
 #include "DownloadEvent.h"
 #include "FileDownloader.h"
-#include "IHttpRequest.h"
-#include "IHttpResponse.h"
+#include "Interfaces/IHttpRequest.h"
+#include "Interfaces/IHttpResponse.h"
 
 
 /**

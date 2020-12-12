@@ -1,9 +1,9 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "DownloadTask.h"
-#include "Paths.h"
-#include "FileHelper.h"
-#include "PlatformFilemanager.h"
+#include "Misc/Paths.h"
+#include "Misc/FileHelper.h"
+#include "HAL/PlatformFilemanager.h"
 #include "HttpModule.h"
 #include "HttpManager.h"
 #include "GenericPlatform/GenericPlatformHttp.h"

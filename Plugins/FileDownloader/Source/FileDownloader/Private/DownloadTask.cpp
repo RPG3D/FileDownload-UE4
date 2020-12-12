@@ -292,7 +292,7 @@ void DownloadTask::GetHead()
 	Request->ProcessRequest();
 
 	TaskState = ETaskState::DOWNLOADING;
-	ProcessTaskEvent(ETaskEvent::START_DOWNLOAD, TaskInfo, -1);
+	ProcessTaskEvent(ETaskEvent::START_DOWNLOAD, TaskInfo, 0);
 }
 
 void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bWasSuccessful)
@@ -570,7 +570,7 @@ void DownloadTask::OnTaskCompleted()
 		{
 			UE_LOG(LogFileDownloader, Warning, TEXT("%s, completed !"), *GetFileName());
 			TaskState = ETaskState::COMPLETED;
-			ProcessTaskEvent(ETaskEvent::DOWNLOAD_COMPLETED, TaskInfo, -1);
+			ProcessTaskEvent(ETaskEvent::DOWNLOAD_COMPLETED, TaskInfo, 0);
 			return;
 		}
 		else
@@ -587,7 +587,7 @@ void DownloadTask::OnTaskCompleted()
 		if (PlatformFile->DeleteFile(*GetFullFileName()) && PlatformFile->MoveFile(*GetFullFileName(), *TmpFileName))
 		{
 			TaskState = ETaskState::COMPLETED;
-			ProcessTaskEvent(ETaskEvent::DOWNLOAD_COMPLETED, TaskInfo, -1);
+			ProcessTaskEvent(ETaskEvent::DOWNLOAD_COMPLETED, TaskInfo, 0);
 			return;
 		}
 		else
@@ -601,7 +601,7 @@ void DownloadTask::OnTaskCompleted()
 	}
 
 	TaskState = ETaskState::COMPLETED;
-	ProcessTaskEvent(ETaskEvent::DOWNLOAD_COMPLETED, TaskInfo, -1);
+	ProcessTaskEvent(ETaskEvent::DOWNLOAD_COMPLETED, TaskInfo, 0);
 	return;
 }
 
@@ -616,7 +616,7 @@ void DownloadTask::OnWriteChunkEnd(int32 DataSize)
 
 	if (GetCurrentSize() < GetTotalSize())
 	{
-		ProcessTaskEvent(ETaskEvent::DOWNLOAD_UPDATE, TaskInfo, -1);
+		ProcessTaskEvent(ETaskEvent::DOWNLOAD_UPDATE, TaskInfo, 0);
 		//download next chunk
 		StartChunk();
 	}

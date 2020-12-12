@@ -6,8 +6,6 @@
 #include "PlatformFilemanager.h"
 #include "HttpModule.h"
 #include "HttpManager.h"
-#include "IHttpRequest.h"
-#include "IHttpResponse.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
 
 const FString TEMP_FILE_EXTERN = TEXT(".dlFile");

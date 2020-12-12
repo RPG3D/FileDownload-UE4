@@ -6,9 +6,8 @@
 #include "TaskInformation.h"
 #include "DownloadEvent.h"
 #include "FileDownloader.h"
-
-class IHttpRequest;
-class IHttpResponse;
+#include "IHttpRequest.h"
+#include "IHttpResponse.h"
 
 
 /**
@@ -90,8 +89,8 @@ protected:
 
 	virtual FString GetFullFileName() const;
 
-	virtual void OnGetHeadCompleted(TSharedPtr<IHttpRequest> InRequest, TSharedPtr<IHttpResponse, ESPMode::ThreadSafe> InResponse, bool bWasSuccessful);
-	virtual void OnGetChunkCompleted(TSharedPtr<IHttpRequest> InRequest, TSharedPtr<IHttpResponse, ESPMode::ThreadSafe> InResponse, bool bWasSuccessful);
+	virtual void OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bWasSuccessful);
+	virtual void OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bWasSuccessful);
 
 	virtual void OnTaskCompleted();
 
@@ -110,10 +109,10 @@ protected:
 	
 	IFileHandle* TargetFile = nullptr;
 
-	TSharedPtr<IHttpRequest> Request = nullptr;
+	FHttpRequestPtr Request = nullptr;
 
 	bool bNeedStop = false;
 
 	int32 CurrentTryCount = 0;
-	int32 MaxTryCount = 10;
+	int32 MaxTryCount = 5;
 };

@@ -312,7 +312,7 @@ void DownloadTask::OnGetHeadCompleted(FHttpRequestPtr InRequest, FHttpResponsePt
 	}
 	int32 RetutnCode = InResponse->GetResponseCode();
 
-	if (RetutnCode >= 400 || RetutnCode < 200)
+	if (EHttpResponseCodes::IsOk(RetutnCode) == false)
 	{
 		UE_LOG(LogFileDownloader, Warning, TEXT("Http return code error : %d"), RetutnCode);
 		if (TargetFile != nullptr)
@@ -464,7 +464,7 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 	}
 	int32 RetCode = InResponse->GetResponseCode();
 
-	if (RetCode >= 400 || RetCode < 200)
+	if (EHttpResponseCodes::IsOk(RetCode) == false)
 	{
 		UE_LOG(LogFileDownloader, Warning, TEXT("%s, Return code error: %d"), *GetSourceUrl(), InResponse->GetResponseCode());
 		if (TargetFile != nullptr)

@@ -20,19 +20,9 @@ public:
 
 	bool DeserializeFromJsonString(const FString& InJsonString);
 
-	FGuid GetGuid() const
+	int32 GetGuid() const
 	{
 		return GUID;
-	}
-
-	bool operator==(const FTaskInformation& InTaskInfo)
-	{
-		return GetGuid() == InTaskInfo.GetGuid() || SourceUrl == InTaskInfo.SourceUrl;
-	}
-
-	bool operator==(const FGuid InGuid)
-	{
-		return GetGuid() == InGuid;
 	}
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
@@ -49,5 +39,5 @@ public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
 		int32 TotalSize = 0;
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-		FGuid GUID = FGuid::NewGuid();
+		int32 GUID =0;
 };

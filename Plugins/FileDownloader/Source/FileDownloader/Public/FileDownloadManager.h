@@ -10,7 +10,7 @@
 
 class DownloadTask;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FDLManagerDelegate, ETaskEvent, InEvent, const FTaskInformation&, InInfo, int32, InHttpCode);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FDLManagerDelegate, ETaskEvent, InEvent, int32, InTaskID, int32, InHttpCode);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAllTaskCompleted, int32, ErrorCount);
 
 /**
@@ -33,7 +33,7 @@ public:
 	 *start a task, only change state, if current works up to MaxDoingWorks, the task is wait
 	 **/
 	UFUNCTION(BlueprintCallable)
-		void StartTask(const FGuid& InGuid);
+		void StartTask(int32 InGuid);
 
 	/*
 	 *stop all task, release file handle and cancel HTTP
@@ -45,7 +45,7 @@ public:
 	 *stop a task immediately
 	 **/
 	UFUNCTION(BlueprintCallable)
-		void StopTask(const FGuid& InGuid);
+		void StopTask(int32 InGuid);
 
 
 	/*
@@ -69,7 +69,7 @@ public:
 	 @Param InFileName figure out the target json file name, you can ignore this param
 	*/
 	UFUNCTION(BlueprintCallable)
-		bool SaveTaskToJsonFile(const FGuid& InGuid, const FString& InFileName);
+		bool SaveTaskToJsonFile(int32 InGuid, const FString& InFileName);
 
 	UFUNCTION(BlueprintCallable)
 		TArray<FTaskInformation> GetAllTaskInformation() const;
@@ -81,13 +81,13 @@ public:
    	 @ param : InFileName ignore this param(Default file name will be used, cutting & copy name from InUrl)
 	 */
 	UFUNCTION(BlueprintCallable)
-		FGuid AddTaskByUrl(const FString& InUrl, const FString& InDirectory = TEXT(""), const FString& InFileName = TEXT(""));
+		int32 AddTaskByUrl(const FString& InUrl, const FString& InDirectory = TEXT(""), const FString& InFileName = TEXT(""));
 
 	UFUNCTION(BlueprintCallable)
 		bool SetTotalSizeByIndex(int32 InIndex, int32 InTotalSize);
 
 	UFUNCTION(BlueprintCallable)
-		bool SetTotalSizeByGuid(FGuid InGid, int32 InTotalSize);
+		bool SetTotalSizeByGuid(int32 InGid, int32 InTotalSize);
 
 	/************************************************************************/
 	/* Interface for TickableObject                                         */
@@ -111,7 +111,7 @@ protected:
 
 	int32 FindTaskToDo() const;
 
-	int32 FindTaskByGuid(const FGuid& InGuid) const;
+	int32 FindTaskByGuid(int32 InGuid) const;
 
 	TArray<TSharedPtr<DownloadTask>> TaskList;
 

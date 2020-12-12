@@ -54,7 +54,9 @@ public:
 
 	virtual bool Stop();
 
-	FGuid GetGuid() const;
+	int32 GetGuid() const;
+
+	void ReGenerateGUID();
 
 	virtual bool IsDownloading() const;
 

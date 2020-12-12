@@ -199,9 +199,16 @@ bool DownloadTask::Stop()
 	return false;
 }
 
-FGuid DownloadTask::GetGuid() const
+int32 DownloadTask::GetGuid() const
 {
 	return TaskInfo.GetGuid();
+}
+
+void DownloadTask::ReGenerateGUID()
+{
+	static int32 TmpID = 0;
+	++TmpID;
+	TaskInfo.GUID = TmpID;
 }
 
 bool DownloadTask::IsDownloading() const

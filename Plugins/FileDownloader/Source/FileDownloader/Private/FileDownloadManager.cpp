@@ -52,7 +52,7 @@ void UFileDownloadManager::StartAll()
 	}
 }
 
-void UFileDownloadManager::StartTask(const FGuid& InGuid)
+void UFileDownloadManager::StartTask(int32 InGuid)
 {
 	int32 ret = FindTaskByGuid(InGuid);
 	if (ret > INDEX_NONE)
@@ -73,7 +73,7 @@ void UFileDownloadManager::StopAll()
 	CurrentDoingWorks = 0;
 }
 
-void UFileDownloadManager::StopTask(const FGuid& InGuid)
+void UFileDownloadManager::StopTask(int32 InGuid)
 {
 	int32 ret = FindTaskByGuid(InGuid);
 	if (ret >= 0)
@@ -125,7 +125,7 @@ void UFileDownloadManager::Clear()
 	ErrorCount = 0;
 }
 
-bool UFileDownloadManager::SaveTaskToJsonFile(const FGuid& InGuid, const FString& InFileName /*= TEXT("")*/)
+bool UFileDownloadManager::SaveTaskToJsonFile(int32 InGuid, const FString& InFileName /*= TEXT("")*/)
 {
 	int32 ret = FindTaskByGuid(InGuid);
 	if (ret < 0)
@@ -147,7 +147,7 @@ TArray<FTaskInformation> UFileDownloadManager::GetAllTaskInformation() const
 	return Ret;
 }
 
-FGuid UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& InDirectory, const FString& InFileName)
+int32 UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& InDirectory, const FString& InFileName)
 {
 	FString TmpDir = InDirectory;
 	if (TmpDir.IsEmpty())
@@ -161,13 +161,7 @@ FGuid UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& In
 		TmpDir = FPaths::ProjectDir() + UrlDirectory;
 	}
 	TSharedPtr<DownloadTask>Task = MakeShareable(new DownloadTask(InUrl, TmpDir, InFileName));
-
-	if (Task.IsValid() == false)
-	{
-		FGuid ret;
-		ret.Invalidate();
-		return ret;
-	}
+	Task->ReGenerateGUID();
 
 	for (int32 i = 0; i < TaskList.Num(); ++i)
 	{
@@ -201,7 +195,7 @@ bool UFileDownloadManager::SetTotalSizeByIndex(int32 InIndex, int32 InTotalSize)
 	return false;
 }
 
-bool UFileDownloadManager::SetTotalSizeByGuid(FGuid InGid, int32 InTotalSize)
+bool UFileDownloadManager::SetTotalSizeByGuid(int32 InGid, int32 InTotalSize)
 {
 	int32 Idx = FindTaskByGuid(InGid);
 	return SetTotalSizeByIndex(Idx, InTotalSize);
@@ -209,7 +203,7 @@ bool UFileDownloadManager::SetTotalSizeByGuid(FGuid InGid, int32 InTotalSize)
 
 void UFileDownloadManager::OnTaskEvent(ETaskEvent InEvent, const FTaskInformation& InInfo, int32 InHttpCode)
 {
-	OnDlManagerEvent.Broadcast(InEvent, InInfo, InHttpCode);
+	OnDlManagerEvent.Broadcast(InEvent, InInfo.GetGuid(), InHttpCode);
 	if (InEvent >= ETaskEvent::DOWNLOAD_COMPLETED)
 	{
 		if (CurrentDoingWorks > 0)
@@ -245,7 +239,7 @@ int32 UFileDownloadManager::FindTaskToDo() const
 	return ret;
 }
 
-int32 UFileDownloadManager::FindTaskByGuid(const FGuid& InGuid) const
+int32 UFileDownloadManager::FindTaskByGuid(int32 InGuid) const
 {
 	int32 ret = INDEX_NONE;
 	for (int32 i = 0; i < TaskList.Num(); ++i)

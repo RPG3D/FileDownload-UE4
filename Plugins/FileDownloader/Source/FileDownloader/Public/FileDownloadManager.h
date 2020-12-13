@@ -74,6 +74,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 		TArray<FTaskInformation> GetAllTaskInformation() const;
 
+	UFUNCTION(BlueprintCallable)
+		FTaskInformation GetTaskInfoByGUID(int32 InGUID) const;
+
 	
 	/*Add a new task(exist task will be ignored, detected via Guid), first cannot be empty!!!
 	 @ param : InUrl cannot be empty!

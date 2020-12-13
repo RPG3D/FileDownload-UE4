@@ -147,6 +147,20 @@ TArray<FTaskInformation> UFileDownloadManager::GetAllTaskInformation() const
 	return Ret;
 }
 
+FTaskInformation UFileDownloadManager::GetTaskInfoByGUID(int32 InGUID) const
+{
+	FTaskInformation Ret;
+	for (int32 i = 0; i < TaskList.Num(); ++i)
+	{
+		if (TaskList[i]->GetTaskInformation().GetGuid() == InGUID)
+		{
+			Ret = TaskList[i]->GetTaskInformation();
+			break;
+		}
+	}
+	return Ret;
+}
+
 int32 UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& InDirectory, const FString& InFileName)
 {
 	FString TmpDir = InDirectory;

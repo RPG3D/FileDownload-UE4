@@ -17,7 +17,7 @@
     "Modules": [
         {
             "Name": "FileDownloader",
-            "Type": "Developer",
+            "Type": "Runtime",
             "LoadingPhase": "Default"
         }
     ]

@@ -46,41 +46,39 @@ void UFileDownloadManager::StartAll()
 {
 	bStopAll = false;
 
-	for (int32 i =0; i < TaskList.Num(); ++i)
+	for (auto It :TaskList)
 	{
-		TaskList[i]->SetNeedStop(false);
+		It.Value->SetNeedStop(false);
 	}
 }
 
-void UFileDownloadManager::StartTask(int32 InGuid)
+void UFileDownloadManager::StartTask(int32 InIndex)
 {
-	int32 ret = FindTaskByGuid(InGuid);
-	if (ret > INDEX_NONE)
+	if (TaskList.Contains(InIndex))
 	{
-		TaskList[ret]->SetNeedStop(false);
+		TaskList[InIndex]->SetNeedStop(false);
 		bStopAll = false;
 	}
 }
 
 void UFileDownloadManager::StopAll()
 {
-	for (int32 i = 0; i < TaskList.Num(); ++i)
+	for (auto It : TaskList)
 	{
-		TaskList[i]->Stop();
+		It.Value->Stop();
 	}
 
 	bStopAll = true;
 	CurrentDoingWorks = 0;
 }
 
-void UFileDownloadManager::StopTask(int32 InGuid)
+void UFileDownloadManager::StopTask(int32 InIndex)
 {
-	int32 ret = FindTaskByGuid(InGuid);
-	if (ret >= 0)
+	if (TaskList.Contains(InIndex))
 	{
-		if (TaskList[ret]->GetState() == ETaskState::DOWNLOADING)
+		if (TaskList[InIndex]->GetState() == ETaskState::DOWNLOADING)
 		{
-			TaskList[ret]->Stop();
+			TaskList[InIndex]->Stop();
 			--CurrentDoingWorks;
 		}
 	}
@@ -91,10 +89,10 @@ int32 UFileDownloadManager::GetTotalPercent() const
 	int64 CurrentSize = 0;
 	int64 TotalSize = 0;
 
-	for (int32 i = 0; i < TaskList.Num(); ++i)
+	for (const auto It : TaskList)
 	{
-		CurrentSize += TaskList[i]->GetCurrentSize();
-		TotalSize += TaskList[i]->GetTotalSize();
+		CurrentSize += It.Value->GetCurrentSize();
+		TotalSize += It.Value->GetTotalSize();
 	}
 
 	if (TotalSize < 1)
@@ -111,10 +109,10 @@ void UFileDownloadManager::GetByteSize(int64& OutCurrentSize, int64& OutTotalSiz
 	OutCurrentSize = 0;
 	OutTotalSize = 0;
 
-	for (int32 i = 0; i < TaskList.Num(); ++i)
+	for (const auto It: TaskList)
 	{
-		OutCurrentSize += TaskList[i]->GetCurrentSize();
-		OutTotalSize += TaskList[i]->GetTotalSize();
+		OutCurrentSize += It.Value->GetCurrentSize();
+		OutTotalSize += It.Value->GetTotalSize();
 	}
 }
 
@@ -125,39 +123,36 @@ void UFileDownloadManager::Clear()
 	ErrorCount = 0;
 }
 
-bool UFileDownloadManager::SaveTaskToJsonFile(int32 InGuid, const FString& InFileName /*= TEXT("")*/)
+bool UFileDownloadManager::SaveTaskToJsonFile(int32 InIndex, const FString& InFileName /*= TEXT("")*/)
 {
-	int32 ret = FindTaskByGuid(InGuid);
-	if (ret < 0)
+	if (TaskList.Contains(InIndex) == false)
 	{
 		return false;
 	}
 
-	return TaskList[ret]->SaveTaskToJsonFile(InFileName);
+	return TaskList[InIndex]->SaveTaskToJsonFile(InFileName);
 }
 
 TArray<FTaskInformation> UFileDownloadManager::GetAllTaskInformation() const
 {
 	TArray<FTaskInformation> Ret;
-	for (int32 i = 0; i < TaskList.Num(); ++i)
+	for (auto It: TaskList)
 	{
-		Ret.Add(TaskList[i]->GetTaskInformation());
+		Ret.Add(It.Value->GetTaskInformation());
 	}
 
 	return Ret;
 }
 
-FTaskInformation UFileDownloadManager::GetTaskInfoByGUID(int32 InGUID) const
+FTaskInformation UFileDownloadManager::GetTaskInfo(int32 InIndex) const
 {
 	FTaskInformation Ret;
-	for (int32 i = 0; i < TaskList.Num(); ++i)
+
+	if (TaskList.Contains(InIndex))
 	{
-		if (TaskList[i]->GetTaskInformation().GetGuid() == InGUID)
-		{
-			Ret = TaskList[i]->GetTaskInformation();
-			break;
-		}
+		Ret = TaskList[InIndex]->GetTaskInformation();
 	}
+
 	return Ret;
 }
 
@@ -174,18 +169,18 @@ int32 UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& In
 
 		TmpDir = FPaths::ProjectDir() + UrlDirectory;
 	}
-	TSharedPtr<DownloadTask>Task = MakeShareable(new DownloadTask(InUrl, TmpDir, InFileName));
-	Task->ReGenerateGUID();
 
-	for (int32 i = 0; i < TaskList.Num(); ++i)
+	for (const auto It: TaskList)
 	{
-		if (TaskList[i]->GetSourceUrl() == Task->GetSourceUrl())
+		if (It.Value->GetSourceUrl() == InUrl)
 		{
 			//任务存在于任务列表
-			return TaskList[i]->GetGuid();
+			return It.Value->GetGuid();
 		}
 	}
 
+	TSharedPtr<DownloadTask>Task = MakeShareable(new DownloadTask(InUrl, TmpDir, InFileName));
+	Task->ReGenerateGUID();
 	Task->ProcessTaskEvent = [this](ETaskEvent InEvent, const FTaskInformation& InInfo, int32 InHpptCode)
 	{
 		if (this != nullptr)
@@ -194,13 +189,13 @@ int32 UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& In
 		}
 	};
 
-	TaskList.Add(Task);
+	TaskList.Add(Task->GetGuid(), Task);
 	return Task->GetGuid();
 }
 
 bool UFileDownloadManager::SetTotalSizeByIndex(int32 InIndex, int32 InTotalSize)
 {
-	if (InIndex < TaskList.Num() && InTotalSize > 1 && TaskList[InIndex]->GetTotalSize() < 1)
+	if (TaskList.Contains(InIndex) && TaskList[InIndex]->GetTotalSize() < 1)
 	{
 		TaskList[InIndex]->SetTotalSize(InTotalSize);
 		return true;
@@ -209,11 +204,6 @@ bool UFileDownloadManager::SetTotalSizeByIndex(int32 InIndex, int32 InTotalSize)
 	return false;
 }
 
-bool UFileDownloadManager::SetTotalSizeByGuid(int32 InGid, int32 InTotalSize)
-{
-	int32 Idx = FindTaskByGuid(InGid);
-	return SetTotalSizeByIndex(Idx, InTotalSize);
-}
 
 void UFileDownloadManager::OnTaskEvent(ETaskEvent InEvent, const FTaskInformation& InInfo, int32 InHttpCode)
 {
@@ -242,28 +232,13 @@ void UFileDownloadManager::OnTaskEvent(ETaskEvent InEvent, const FTaskInformatio
 int32 UFileDownloadManager::FindTaskToDo() const
 {
 	int32 ret = INDEX_NONE;
-	for (int32 i = 0; i < TaskList.Num(); ++i)
+	for (auto It: TaskList)
 	{
-		if (TaskList[i]->GetState() == ETaskState::WAIT && TaskList[i]->GetNeedStop() == false)
+		if (It.Value->GetState() == ETaskState::WAIT && It.Value->GetNeedStop() == false)
 		{
-			ret = i;
+			ret = It.Key;
 		}
 	}
 
 	return ret;
 }
-
-int32 UFileDownloadManager::FindTaskByGuid(int32 InGuid) const
-{
-	int32 ret = INDEX_NONE;
-	for (int32 i = 0; i < TaskList.Num(); ++i)
-	{
-		if (TaskList[i]->GetGuid() == InGuid)
-		{
-			ret = i;
-		}
-	}
-
-	return ret;
-}
-

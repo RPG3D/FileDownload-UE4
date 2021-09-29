@@ -33,7 +33,7 @@ public:
 	 *start a task, only change state, if current works up to MaxDoingWorks, the task is wait
 	 **/
 	UFUNCTION(BlueprintCallable)
-		void StartTask(int32 InGuid);
+		void StartTask(int32 InIndex);
 
 	/*
 	 *stop all task, release file handle and cancel HTTP
@@ -45,7 +45,7 @@ public:
 	 *stop a task immediately
 	 **/
 	UFUNCTION(BlueprintCallable)
-		void StopTask(int32 InGuid);
+		void StopTask(int32 InIndex);
 
 
 	/*
@@ -69,13 +69,13 @@ public:
 	 @Param InFileName figure out the target json file name, you can ignore this param
 	*/
 	UFUNCTION(BlueprintCallable)
-		bool SaveTaskToJsonFile(int32 InGuid, const FString& InFileName);
+		bool SaveTaskToJsonFile(int32 InIndex, const FString& InFileName);
 
 	UFUNCTION(BlueprintCallable)
 		TArray<FTaskInformation> GetAllTaskInformation() const;
 
 	UFUNCTION(BlueprintCallable)
-		FTaskInformation GetTaskInfoByGUID(int32 InGUID) const;
+		FTaskInformation GetTaskInfo(int32 InIndex) const;
 
 	
 	/*Add a new task(exist task will be ignored, detected via Guid), first cannot be empty!!!
@@ -89,8 +89,6 @@ public:
 	UFUNCTION(BlueprintCallable)
 		bool SetTotalSizeByIndex(int32 InIndex, int32 InTotalSize);
 
-	UFUNCTION(BlueprintCallable)
-		bool SetTotalSizeByGuid(int32 InGid, int32 InTotalSize);
 
 	/************************************************************************/
 	/* Interface for TickableObject                                         */
@@ -114,9 +112,7 @@ protected:
 
 	int32 FindTaskToDo() const;
 
-	int32 FindTaskByGuid(int32 InGuid) const;
-
-	TArray<TSharedPtr<DownloadTask>> TaskList;
+	TMap<int32, TSharedPtr<DownloadTask>> TaskList;
 
 	int32 CurrentDoingWorks = 0;
 

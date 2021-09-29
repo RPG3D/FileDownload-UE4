@@ -7,6 +7,7 @@
 #include "HttpModule.h"
 #include "HttpManager.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
+#include "Async/Async.h"
 
 const FString TEMP_FILE_EXTERN = TEXT(".dlFile");
 const FString TASK_JSON = TEXT(".task");
@@ -487,9 +488,8 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 	DataBuffer = InResponse->GetContent();
 
 
-#if 0
 	//Async write chunk buffer to file 
-	Async<void>(EAsyncExecution::ThreadPool, [this]()
+	Async(EAsyncExecution::ThreadPool, [this]()->int32
 	{
 		if (this->TargetFile != nullptr)
 		{
@@ -513,31 +513,14 @@ void DownloadTask::OnGetChunkCompleted(FHttpRequestPtr InRequest, FHttpResponseP
 				}, TStatId(), nullptr, ENamedThreads::GameThread);
 
 			}
-		}
-	});
 
-#else
-
-	//Sync write chunk buffer to file 
-
-	if (this->TargetFile != nullptr)
-	{
-		this->TargetFile->Seek(this->GetCurrentSize());
-		bool bWriteRet = this->TargetFile->Write(DataBuffer.GetData(), DataBuffer.Num());
-		if (bWriteRet)
-		{
-			this->TargetFile->Flush();
-			this->OnWriteChunkEnd(this->DataBuffer.Num());
+			return 0;
 		}
 		else
 		{
-			UE_LOG(LogFileDownloader, Warning, TEXT("%s, %d, Sync write file error !"), __FUNCTION__, __LINE__);
-			this->TaskState = ETaskState::ERROR;
-			this->ProcessTaskEvent(ETaskEvent::ERROR_OCCUR, this->TaskInfo, -1);
+			return -1;
 		}
-	}
-
-#endif
+	});
 	
 }
 

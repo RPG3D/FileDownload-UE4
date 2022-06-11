@@ -182,7 +182,7 @@ bool DownloadTask::Stop()
 		}
 
 		Request->CancelRequest();
-		FHttpModule::Get().GetHttpManager().RemoveRequest(Request.ToSharedRef());
+		Request = nullptr;
 	}
 
 	if (TargetFile)

@@ -12,7 +12,7 @@ A http based file download plugin for Unreal Engine 5+
 
 ## usages
 Pseudo code
-```
+```lua
 --add task on button clicked event 
 local DownloadMgr = UE4.UGameplayStatics.SpawnObject(UE4.UFileDownloadManager)
 

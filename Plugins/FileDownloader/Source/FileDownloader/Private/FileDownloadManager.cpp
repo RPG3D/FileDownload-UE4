@@ -161,13 +161,7 @@ int32 UFileDownloadManager::AddTaskByUrl(const FString& InUrl, const FString& In
 	FString TmpDir = InDirectory;
 	if (TmpDir.IsEmpty())
 	{
-		//https://www.google.com/
-		static int32 URLTag = 8;
-		int32 StartSlash = InUrl.Find(FString("/"), ESearchCase::IgnoreCase, ESearchDir::FromStart, URLTag);
-		int32 LastSlash = InUrl.Find(FString("/"), ESearchCase::IgnoreCase, ESearchDir::FromEnd);
-		FString UrlDirectory = InUrl.Mid(StartSlash, LastSlash - StartSlash);
-
-		TmpDir = FPaths::ProjectDir() + UrlDirectory;
+		TmpDir = FPaths::ProjectSavedDir();
 	}
 
 	for (const auto It: TaskList)

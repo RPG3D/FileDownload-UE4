@@ -6,7 +6,7 @@ A http based file download plugin for Unreal Engine 5+
 
 1.breakpoint resume.(save task progress to json on stop, read from json on resume)
 
-2.block based download.(use http REANGE feature download large file, up to 4GB, you can change int32 to int64 for 4GB+ file)
+2.block based download.(use http RANGE feature download large file, up to 4GB, you can change int32 to int64 for 4GB+ file)
 
 3.async IO write, no IO block on game thread
 

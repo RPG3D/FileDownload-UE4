@@ -8,7 +8,10 @@ public class DownloadExampleTarget : TargetRules
 	public DownloadExampleTarget(TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Game;
-		DefaultBuildSettings = BuildSettingsVersion.V2;
+
+        IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
+        DefaultBuildSettings = BuildSettingsVersion.V4;
+
 		ExtraModuleNames.AddRange( new string[] { "DownloadExample" } );
 	}
 }

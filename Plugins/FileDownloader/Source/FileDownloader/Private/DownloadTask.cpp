@@ -191,11 +191,10 @@ bool DownloadTask::Stop()
 		TargetFile = nullptr;
 	}
 
-	if (GetState() == ETaskState::DOWNLOADING)
-	{
-		SetNeedStop(true);	
-		return true;
-	}
+	TaskState = ETaskState::WAIT;
+
+	SetNeedStop(true);	
+	return true;
 
 	return false;
 }
